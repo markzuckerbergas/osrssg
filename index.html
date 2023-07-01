@@ -5,21 +5,7 @@
     <meta charset="utf-8">
     <title>Bevy game</title>
 
-    <link rel="icon" href="icon.ico">
-    <style type="text/css">
-        body,
-        html {
-            height: 100%;
-        }       
-
-        .game-container {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }        
-    </style>
+    <link rel="icon" href="icon.ico">    
 
     <link rel="preload" href="/osrssg/osrssg_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
     <link rel="modulepreload" href="/osrssg/osrssg.js">
@@ -88,13 +74,7 @@
                 document.addEventListener(eventName, resumeAllContexts);
             });
         })();
-    </script>
-    <div class="game-container">
-        <canvas id="bevy">
-            Javascript and support for canvas is required
-        </canvas>
-    </div>
-
+    </script>    
 
     <script type="module">import init from '/osrssg/osrssg.js'; init('/osrssg/osrssg_bg.wasm');</script>
 </body>
