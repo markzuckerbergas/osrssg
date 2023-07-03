@@ -6,7 +6,7 @@ The game can be compiled to WebAssembly and hosted on Github Pages.
 
 See an example here: [https://markzuckerbergas.github.io/osrssg/](https://markzuckerbergas.github.io/osrssg/)
 
-To explore the compiled WebAssembly game and the necessary HTML/javascript files that tie everything together, switch to the [web](https://github.com/markzuckerbergas/osrssg/tree/web) branch.
+To explore the compiled WebAssembly game and the necessary HTML/JavaScript files that tie everything together, switch to the [web](https://github.com/markzuckerbergas/osrssg/tree/web) branch.
 
 ## Installation
 
