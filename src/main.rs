@@ -7,7 +7,7 @@
 //! - arrow up / down: speed up / slow down animation playback
 //! - arrow left / right: seek backward / forward
 
-use bevy::prelude::*;
+use bevy::{prelude::*, render::camera::ScalingMode};
 use std::time::Duration;
 
 fn main() {
@@ -65,7 +65,13 @@ fn setup(
 
     // camera
     commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        projection: OrthographicProjection {
+            scale: 3.0,
+            scaling_mode: ScalingMode::FixedVertical(2.0),
+            ..default()
+        }
+        .into(),
+        transform: Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
 
