@@ -16,6 +16,7 @@ fn main() {
         .add_startup_system(setup)
         .add_system(setup_scene_once_loaded)
         .add_system(keyboard_animation_control)
+        .add_system(keyboard_camera_movement)
         .run();
 }
 
@@ -91,6 +92,28 @@ fn setup_scene_once_loaded(
     }
 }
 
+fn keyboard_camera_movement(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut camera: Query<&mut Transform, With<Camera>>,
+) {
+    for mut transform in camera.iter_mut() {
+        let mut translation = Vec3::ZERO;
+        if keyboard_input.pressed(KeyCode::Left) {
+            translation -= transform.rotation * Vec3::X;
+        }
+        if keyboard_input.pressed(KeyCode::Right) {
+            translation += transform.rotation * Vec3::X;
+        }
+        if keyboard_input.pressed(KeyCode::Up) {
+            translation += transform.rotation * Vec3::Y;
+        }
+        if keyboard_input.pressed(KeyCode::Down) {
+            translation -= transform.rotation * Vec3::Y;
+        }
+        transform.translation += translation * 0.1;
+    }
+}
+
 fn keyboard_animation_control(
     keyboard_input: Res<Input<KeyCode>>,
     mut animation_players: Query<&mut AnimationPlayer>,
@@ -104,26 +127,6 @@ fn keyboard_animation_control(
             } else {
                 player.pause();
             }
-        }
-
-        if keyboard_input.just_pressed(KeyCode::Up) {
-            let speed = player.speed();
-            player.set_speed(speed * 1.2);
-        }
-
-        if keyboard_input.just_pressed(KeyCode::Down) {
-            let speed = player.speed();
-            player.set_speed(speed * 0.8);
-        }
-
-        if keyboard_input.just_pressed(KeyCode::Left) {
-            let elapsed = player.elapsed();
-            player.set_elapsed(elapsed - 0.1);
-        }
-
-        if keyboard_input.just_pressed(KeyCode::Right) {
-            let elapsed = player.elapsed();
-            player.set_elapsed(elapsed + 0.1);
         }
 
         if keyboard_input.just_pressed(KeyCode::Return) {
