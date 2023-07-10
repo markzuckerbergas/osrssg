@@ -2,27 +2,65 @@
 //! Simple animation control and camera movement.
 //!
 //! Controls:
-//! - return: start / change animation
-//! - spacebar: play / pause animation
-//! - arrows: move camera
+//! - Mouse: Left click to select player, right click to move player
+//! - arrows/mouse: move camera
 
-use bevy::input::mouse::MouseWheel;
+use bevy::input::mouse::{MouseButtonInput, MouseWheel};
+use bevy::input::ButtonState;
 use bevy::{prelude::*, render::camera::ScalingMode};
-use std::time::Duration;
+use bevy_mod_picking::prelude::*;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(
+            DefaultPickingPlugins
+                .build()
+                .disable::<DebugPickingPlugin>()
+                .disable::<DefaultHighlightingPlugin>(),
+        )
+        .init_resource::<GameData>()
         .add_startup_system(setup)
-        .add_system(setup_scene_once_loaded)
-        .add_system(keyboard_animation_control)
         .add_system(keyboard_camera_movement)
         .add_system(mouse_camera_movement)
+        .add_system(make_pickable)
+        .add_system(set_location_and_start_movement)
+        .add_system(move_entities_to_location)
+        .add_event::<DeselectAllEvent>()
+        .add_system(deselect_all_entities.run_if(on_event::<DeselectAllEvent>()))
         .run();
 }
 
 #[derive(Resource)]
 struct Animations(Vec<Handle<AnimationClip>>);
+
+#[derive(Component)]
+struct Movable {}
+
+#[derive(Component)]
+struct PlayerName(String);
+
+#[derive(Component)]
+struct Selected {}
+
+#[derive(Component)]
+struct Moving {}
+
+#[derive(Bundle)]
+struct PlayerBundle {
+    name: PlayerName,
+
+    #[bundle]
+    scene: SceneBundle,
+}
+
+#[derive(Component)]
+struct Ground;
+
+#[derive(Resource, Default)]
+struct GameData {
+    destination: Vec3,
+}
 
 /// set up a simple 3D scene
 fn setup(
@@ -32,21 +70,38 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // plane
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(shape::Plane::from_size(5.0).into()),
-        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
-        ..default()
-    });
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(shape::Plane::from_size(20.0).into()),
+            material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+            ..default()
+        },
+        Ground,
+        OnPointer::<Click>::send_event::<DeselectAllEvent>(),
+        PickHighlight,
+    ));
 
-    // player
+    // default player
     let mut player_transform = Transform::from_xyz(0.0, 0.05, 0.0);
     player_transform.scale = Vec3::splat(0.03);
 
-    commands.spawn(SceneBundle {
-        scene: asset_server.load("player.glb#Scene0"),
-        transform: player_transform,
-        ..default()
-    });
+    let player = PlayerBundle {
+        name: PlayerName("Player1".to_string()),
+        scene: SceneBundle {
+            scene: asset_server.load("player.glb#Scene0"),
+            transform: player_transform,
+            ..default()
+        },
+    };
+
+    commands.spawn((
+        player,
+        Movable {},
+        OnPointer::<Click>::commands_mut(|event, commands| {
+            info!("Player selected!");
+            commands.entity(event.listener).insert(Selected {});
+        }),
+    ));
 
     // animations
     commands.insert_resource(Animations(vec![
@@ -66,24 +121,30 @@ fn setup(
     });
 
     // camera
-    commands.spawn(Camera3dBundle {
-        projection: OrthographicProjection {
-            scale: 3.0,
-            scaling_mode: ScalingMode::FixedVertical(2.0),
+    commands.spawn((
+        Camera3dBundle {
+            projection: OrthographicProjection {
+                scale: 5.0,
+                scaling_mode: ScalingMode::FixedVertical(2.0),
+                ..default()
+            }
+            .into(),
+            transform: Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
-        }
-        .into(),
-        transform: Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
+        },
+        RaycastPickCamera::default(),
+    ));
 }
 
-fn setup_scene_once_loaded(
-    animations: Res<Animations>,
-    mut players: Query<&mut AnimationPlayer, Added<AnimationPlayer>>,
+/// Makes everything in the scene with a mesh pickable
+fn make_pickable(
+    mut commands: Commands,
+    meshes: Query<Entity, (With<Handle<Mesh>>, Without<RaycastPickTarget>)>,
 ) {
-    for mut player in &mut players {
-        player.play(animations.0[0].clone_weak());
+    for entity in meshes.iter() {
+        commands
+            .entity(entity)
+            .insert((PickableBundle::default(), RaycastPickTarget::default()));
     }
 }
 
@@ -106,31 +167,6 @@ fn keyboard_camera_movement(
             translation -= transform.rotation * Vec3::Y;
         }
         transform.translation += translation * 0.1;
-    }
-}
-
-fn keyboard_animation_control(
-    keyboard_input: Res<Input<KeyCode>>,
-    mut animation_players: Query<&mut AnimationPlayer>,
-    animations: Res<Animations>,
-    mut current_animation: Local<usize>,
-) {
-    for mut player in &mut animation_players {
-        if keyboard_input.just_pressed(KeyCode::Space) {
-            if player.is_paused() {
-                player.resume();
-            } else {
-                player.pause();
-            }
-        }
-
-        if keyboard_input.just_pressed(KeyCode::Return) {
-            *current_animation = (*current_animation + 1) % animations.0.len();
-            player.play_with_transition(
-                animations.0[*current_animation].clone_weak(),
-                Duration::from_millis(250),
-            );
-        }
     }
 }
 
@@ -179,6 +215,97 @@ fn mouse_camera_movement(
         // Handle zoom
         for mut transform in camera.iter_mut() {
             transform.scale *= 1.0 + -event.y / 20.0;
+        }
+    }
+}
+
+fn set_location_and_start_movement(
+    mut commands: Commands,
+    mut mouse_button_input_events: EventReader<MouseButtonInput>,
+    selected_entities: Query<(Entity, &mut Selected)>,
+    ground_query: Query<&Transform, With<Ground>>,
+    query_camera: Query<(&Camera, &GlobalTransform)>,
+    windows: Query<&mut Window>,
+    mut animation_players: Query<&mut AnimationPlayer>,
+    animations: Res<Animations>,
+) {
+    for event in mouse_button_input_events.iter() {
+        if event.button == MouseButton::Right
+            && event.state == ButtonState::Pressed
+            && selected_entities.iter().count() > 0
+        {
+            let (camera, camera_transform) = query_camera.single();
+            let ground = ground_query.single();
+
+            let Some(cursor_position) = windows.single().cursor_position() else { return; };
+
+            // Calculate a ray pointing from the camera into the world based on the cursor's position.
+            let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else { return; };
+
+            // Calculate if and where the ray is hitting the ground plane.
+            let Some(distance) = ray.intersect_plane(ground.translation, ground.up()) else { return; };
+            let point = ray.get_point(distance);
+
+            commands.insert_resource(GameData { destination: point });
+
+            for (entity, _) in selected_entities.iter() {
+                commands.entity(entity).insert(Moving {});
+            }
+
+            for mut player in animation_players.iter_mut() {
+                player.play(animations.0[0].clone_weak());
+            }
+        }
+    }
+}
+
+struct DeselectAllEvent();
+
+impl From<ListenedEvent<Click>> for DeselectAllEvent {
+    fn from(_: ListenedEvent<Click>) -> Self {
+        DeselectAllEvent()
+    }
+}
+
+fn deselect_all_entities(
+    mut commands: Commands,
+    query: Query<(Entity, &Selected)>,
+    mouse_button_input: Res<Input<MouseButton>>,
+) {
+    if mouse_button_input.just_released(MouseButton::Left) {
+        for (entity, _) in query.iter() {
+            commands.entity(entity).remove::<Selected>();
+        }
+    }
+}
+
+fn move_entities_to_location(
+    mut query: Query<(&mut Transform, &Moving, &Movable, Entity)>,
+    mut commands: Commands,
+    game_data: ResMut<GameData>,
+    mut animation_players: Query<&mut AnimationPlayer>,
+    animations: Res<Animations>,
+) {
+    for (mut transform, _, _, entity) in query.iter_mut() {
+        let destination = game_data.destination;
+
+        // Rotate the player to face the point
+        let direction = destination - transform.translation;
+        let rotation = Quat::from_rotation_y(direction.x.atan2(direction.z));
+        transform.rotation = rotation;
+
+        // Ignore the y axis
+        // Smoothly move the player to the point
+        let new_point = Vec3::new(destination.x, transform.translation.y, destination.z);
+
+        // if player is near the destination, just set the position
+        if transform.translation.distance(new_point) < 0.1 {
+            commands.entity(entity).remove::<Moving>();
+            for mut player in animation_players.iter_mut() {
+                player.play(animations.0[1].clone_weak());
+            }
+        } else {
+            transform.translation = transform.translation.lerp(new_point, 0.01);
         }
     }
 }
