@@ -22,13 +22,17 @@ cargo run --features bevy/dynamic_linking
 ## Currently working on
 
 ### Camera (Isometric viewpoint)
-The camera needs to be constrained to an isometric projection. x, y and z axis are all at 120 degrees to each other. The camera is positioned at a 45 degree angle from the ground.
+The camera needs to be constrained to an isometric projection.
 
 ### Defining camera movement
 1) Player can move the camera around the map by moving the mouse to the edge of the screen or by using the arrow keys.
 2) Player can zoom in and out by using the mouse wheel.
 3) Player can move the camera to a specific location by clicking on the minimap.
 
+### Left click selection
+1) Player can select a single unit by left clicking on it.
+2) Player can select multiple units by left clicking and dragging a selection box around them.
+3) If units can move, they will move to the location that the player right clicked on.
 
 
 
