@@ -1,38 +1,156 @@
-# Old School RuneScape Strategy Game 
+# Old School RuneScape Strategy Game (OSRSSG)
+
 A real-time strategy game that merges the immersive world of Old School RuneScape with the gameplay mechanics of strategy games like Age of Empires 2.
 
-## Preview
-The game can be compiled to WebAssembly and hosted on Github Pages.
+## 🎮 Game Features
 
-See an example here: [https://markzuckerbergas.github.io/osrssg/](https://markzuckerbergas.github.io/osrssg/)
+- **Precise Unit Selection**: Left-click anywhere on a character (legs, torso, head) to select them
+- **Movement Commands**: Right-click to move selected units  
+- **Isometric Camera**: Classic RTS-style view with zoom and pan controls
+- **Smooth Animations**: Walking and idle animations for units
 
-To explore the compiled WebAssembly game and the necessary HTML/JavaScript files that tie everything together, switch to the [web](https://github.com/markzuckerbergas/osrssg/tree/web) branch.
+## 🛠️ Technology Stack
 
-## Installation
+- **Engine**: [Bevy Engine](https://bevyengine.org/) (Rust game engine)
+- **Graphics**: 3D rendering with isometric camera projection
+- **Assets**: GLTF models with embedded animations
 
-Install Rust on your local machine
-[The Rust Programming Language Book - Getting Started](https://doc.rust-lang.org/book/ch01-01-installation.html).
+## 🚀 Quick Start
 
-Run the game and optionally enable fast compiles.
-``` bash
-cargo run --features bevy/dynamic_linking 
+### Prerequisites
+
+1. Install Rust: [rustup.rs](https://rustup.rs/)
+2. Clone this repository
+
+### Running the Game
+
+```bash
+# For faster compilation during development
+cargo run --features bevy/dynamic_linking
+
+# Or just run normally
+cargo run
 ```
-[Reference](https://bevyengine.org/learn/book/getting-started/setup/#enable-fast-compiles-optional)
 
-## Currently working on
+### Controls
 
-### Camera (Isometric viewpoint)
-The camera needs to be constrained to an isometric projection.
+- **Arrow Keys**: Move camera around the map
+- **Mouse Wheel**: Zoom in/out
+- **Left Click**: Select a unit (click anywhere on the character model)
+- **Right Click**: Move selected unit to clicked location
 
-### Defining camera movement
-1) Player can move the camera around the map by moving the mouse to the edge of the screen or by using the arrow keys.
-2) Player can zoom in and out by using the mouse wheel.
-3) Player can move the camera to a specific location by clicking on the minimap.
+## 📁 Project Structure
 
-### Left click selection
-1) Player can select a single unit by left clicking on it.
-2) Player can select multiple units by left clicking and dragging a selection box around them.
-3) If units can move, they will move to the location that the player right clicked on.
+The codebase is organized for easy understanding and maintenance:
+
+```
+src/
+├── main.rs              # Application entry point
+├── lib.rs               # Module declarations and exports
+├── components/          # Game components (ECS data)
+│   └── mod.rs          # Selected, Moving, Controllable, UnitAnimations
+├── resources/           # Global game state
+│   └── mod.rs          # GameState, CameraSettings
+└── systems/             # Game logic systems
+    ├── mod.rs          # System module exports
+    ├── animation.rs    # Animation management
+    ├── camera.rs       # Camera controls
+    ├── input.rs        # Mouse/keyboard input handling
+    ├── movement.rs     # Unit movement logic
+    └── setup.rs        # Scene setup and initialization
+```
+
+### Key Concepts
+
+**Components** define what entities have:
+- `Selected`: Marks units as selected by player
+- `Moving`: Marks units that are currently moving
+- `Controllable`: Marks units that can be controlled
+- `UnitAnimations`: Stores animation references
+
+**Resources** store global state:
+- `GameState`: Current movement destination
+- `CameraSettings`: Camera movement and zoom parameters
+
+**Systems** contain the game logic:
+- Input handling (selection and movement commands)
+- Camera controls (movement and zoom)
+- Unit movement and animation updates
+
+## 🎯 For New Developers
+
+### Understanding the Code
+
+1. **Start with `main.rs`**: See how systems are registered and the game loop works
+2. **Look at `setup.rs`**: Understand how the game scene is initialized
+3. **Check `input.rs`**: See how player input is processed
+4. **Explore `movement.rs`**: Learn how units move around
+
+### Making Changes
+
+- **Add new unit types**: Create new components in `components/mod.rs`
+- **New game mechanics**: Add systems in the `systems/` folder
+- **UI elements**: Add new systems for UI handling
+- **Graphics**: Modify lighting and rendering in `setup.rs`
+
+### Key Learning Resources
+
+- [Bevy Book](https://bevy-cheatbook.github.io/) - Comprehensive Bevy guide
+- [ECS Pattern](https://bevy-cheatbook.github.io/programming/ecs.html) - Understanding Entity-Component-System
+- [Rust Book](https://doc.rust-lang.org/book/) - Learning Rust programming
+
+## 📝 Development Features
+
+### Fast Compilation
+
+For faster development, use dynamic linking:
+```bash
+cargo run --features bevy/dynamic_linking
+```
+
+### WebAssembly Build
+
+The game can be compiled to WebAssembly for web deployment:
+```bash
+# Build for web (requires additional setup)
+# See: https://bevy-cheatbook.github.io/platforms/wasm.html
+```
+
+## 🤝 Contributing
+
+1. **Code Style**: Follow Rust conventions and add comments for complex logic
+2. **Testing**: Test your changes with `cargo run`
+3. **Documentation**: Update README if adding new features
+4. **Modularity**: Keep systems focused on single responsibilities
+
+## 🎯 Next Steps & TODOs
+
+### Immediate Improvements
+- [ ] Multiple unit selection (drag selection box)
+- [ ] Unit health and combat system
+- [ ] Resource gathering mechanics
+- [ ] Building construction
+
+### Camera Enhancements
+- [ ] Edge scrolling (move camera when mouse near screen edge)
+- [ ] Minimap for navigation
+- [ ] Camera bounds (prevent moving too far from action)
+
+### Gameplay Features
+- [ ] Different unit types (workers, soldiers, etc.)
+- [ ] Fog of war
+- [ ] AI opponents
+- [ ] Save/load game state
+
+## 📖 Web Demo
+
+See the live demo: [https://markzuckerbergas.github.io/osrssg/](https://markzuckerbergas.github.io/osrssg/)
+
+The web build source is available in the `web` branch.
+
+---
+
+**Happy coding!** 🦀 This project is designed to be approachable for developers new to Rust or game development. Each module has clear responsibilities, and the code prioritizes readability over clever optimizations.
 
 
 
