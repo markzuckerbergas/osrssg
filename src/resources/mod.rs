@@ -24,14 +24,14 @@ pub struct CameraSettings {
 impl Default for CameraSettings {
     fn default() -> Self {
         Self {
-            move_speed: 8.0,        // Matched with edge_scroll_speed for consistency
-            zoom_speed: 0.0,        // Disabled zoom for now
-            min_zoom: 1.0,          // Standard zoom level (fixed)
-            max_zoom: 1.0,          // Standard zoom level (fixed)
+            move_speed: 8.0,          // Matched with edge_scroll_speed for consistency
+            zoom_speed: 0.0,          // Disabled zoom for now
+            min_zoom: 1.0,            // Standard zoom level (fixed)
+            max_zoom: 1.0,            // Standard zoom level (fixed)
             edge_scroll_margin: 50.0, // Pixels from edge to trigger scrolling
             edge_scroll_speed: 8.0,   // Speed multiplier for edge scrolling
             bounds_min: Vec3::new(-50.0, 0.0, -50.0), // Expanded camera bounds
-            bounds_max: Vec3::new(50.0, 15.0, 50.0),  // Expanded camera bounds
+            bounds_max: Vec3::new(50.0, 15.0, 50.0), // Expanded camera bounds
         }
     }
 }
@@ -40,7 +40,7 @@ impl Default for CameraSettings {
 #[derive(Resource)]
 pub struct MinimapSettings {
     pub size: Vec2,
-    pub position: Vec2, // Screen position (0,0 = top-left, 1,1 = bottom-right)
+    pub position: Vec2,   // Screen position (0,0 = top-left, 1,1 = bottom-right)
     pub world_size: Vec2, // Area of world to show
     pub zoom: f32,
 }

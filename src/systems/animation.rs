@@ -1,6 +1,6 @@
-use bevy::prelude::*;
 use crate::components::{Controllable, Moving, UnitAnimationPlayer};
 use crate::resources::UnitAnimations;
+use bevy::prelude::*;
 
 /// Sets up the animation graph for units
 pub fn setup_animations(
@@ -9,26 +9,32 @@ pub fn setup_animations(
     mut animation_graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     info!("🔄 Setting up animation system");
-    
+
     // Load animations using the modern GltfAssetLabel format
     // Animation0 = walk, Animation1 = idle
     let animation_0 = asset_server.load(GltfAssetLabel::Animation(0).from_asset("player.glb")); // walk
     let animation_1 = asset_server.load(GltfAssetLabel::Animation(1).from_asset("player.glb")); // idle
-    
-    info!("📦 Loading animations: anim0={:?}, anim1={:?}", animation_0, animation_1);
-    
+
+    info!(
+        "📦 Loading animations: anim0={:?}, anim1={:?}",
+        animation_0, animation_1
+    );
+
     // Create animation graph with both clips
     // Animation0 = walk, Animation1 = idle
     // Assign them correctly: walk_node gets animation_0, idle_node gets animation_1
     let mut animation_graph = AnimationGraph::new();
     let walk_node = animation_graph.add_clip(animation_0, 1.0, animation_graph.root); // animation_0 = walk
     let idle_node = animation_graph.add_clip(animation_1, 1.0, animation_graph.root); // animation_1 = idle
-    
+
     // Store the animation graph
     let animation_graph_handle = animation_graphs.add(animation_graph);
-    
-    info!("✅ Animation graph created with walk_node={:?}, idle_node={:?}", walk_node, idle_node);
-    
+
+    info!(
+        "✅ Animation graph created with walk_node={:?}, idle_node={:?}",
+        walk_node, idle_node
+    );
+
     // Store the animations in a resource for easy access
     commands.insert_resource(UnitAnimations {
         walk_node,
@@ -49,31 +55,41 @@ pub fn setup_animation_players(
     animations: Res<UnitAnimations>,
 ) {
     for (player_entity, mut player) in new_players.iter_mut() {
-        info!("🎮 Setting up AnimationPlayer for entity {:?}", player_entity);
-        
+        info!(
+            "🎮 Setting up AnimationPlayer for entity {:?}",
+            player_entity
+        );
+
         // FIRST: Add the animation graph handle immediately
-        commands.entity(player_entity).insert(AnimationGraphHandle(animations.animation_graph.clone()));
-        
+        commands
+            .entity(player_entity)
+            .insert(AnimationGraphHandle(animations.animation_graph.clone()));
+
         // Immediately stop any default animations that might be playing
         player.stop_all();
-        
+
         // IMMEDIATELY start idle animation before any linking
         player.play(animations.idle_node);
-        
+
         // Find which controllable unit this AnimationPlayer belongs to
         let mut linked = false;
         for (unit_entity, children) in controllable_query.iter() {
             // Recursively search for the AnimationPlayer in the hierarchy
             if find_entity_in_hierarchy(player_entity, children, &children_query, 0) {
-                commands.entity(player_entity).insert(UnitAnimationPlayer { unit_entity });
+                commands
+                    .entity(player_entity)
+                    .insert(UnitAnimationPlayer { unit_entity });
                 linked = true;
                 break;
             }
         }
-        
+
         // If no specific unit found, that's okay - we already added the graph and started idle
         if !linked {
-            info!("⚠️ No parent unit found for AnimationPlayer {:?}", player_entity);
+            info!(
+                "⚠️ No parent unit found for AnimationPlayer {:?}",
+                player_entity
+            );
         }
     }
 }
@@ -85,15 +101,16 @@ fn find_entity_in_hierarchy(
     children_query: &Query<&Children>,
     depth: usize,
 ) -> bool {
-    if depth > 10 { // Prevent infinite recursion
+    if depth > 10 {
+        // Prevent infinite recursion
         return false;
     }
-    
+
     // Check direct children first
     if current_children.contains(&target) {
         return true;
     }
-    
+
     // Check children's children
     for child in current_children.iter() {
         if let Ok(grandchildren) = children_query.get(child) {
@@ -102,7 +119,7 @@ fn find_entity_in_hierarchy(
             }
         }
     }
-    
+
     false
 }
 
@@ -118,20 +135,20 @@ pub fn animate_units(
         if !all_units_query.contains(unit_link.unit_entity) {
             continue;
         }
-        
+
         // Check if THIS specific unit is moving
         let is_moving = moving_query.contains(unit_link.unit_entity);
-        
+
         // Debug: Check what animations are currently playing
         let playing_walk = player.is_playing_animation(animations.walk_node);
         let playing_idle = player.is_playing_animation(animations.idle_node);
-        
+
         // If no animation is playing at all, start with idle
         if !playing_walk && !playing_idle {
             player.play(animations.idle_node);
             continue;
         }
-        
+
         if is_moving {
             if !playing_walk {
                 player.stop_all();
@@ -156,10 +173,13 @@ pub fn debug_animation_assets(
     if *done {
         return;
     }
-    
+
     if let Some(graph) = graphs.get(&animations.animation_graph) {
-        info!("✅ Animation system ready: {} nodes, {} clips", 
-            graph.nodes().count(), animation_clips.len());
+        info!(
+            "✅ Animation system ready: {} nodes, {} clips",
+            graph.nodes().count(),
+            animation_clips.len()
+        );
         *done = true;
     }
 }
@@ -174,7 +194,7 @@ pub fn debug_moving_components(
     for entity in moving_query.iter() {
         info!("🟢 Moving component ADDED to entity {:?}", entity);
     }
-    
+
     // Log when Moving components are removed
     for entity in removed_moving.read() {
         if controllable_query.contains(entity) {
@@ -184,12 +204,8 @@ pub fn debug_moving_components(
 }
 
 /// Debug system to track when controllable entities are spawned
-pub fn debug_entity_spawning(
-    controllable_query: Query<Entity, Added<Controllable>>,
-) {
+pub fn debug_entity_spawning(controllable_query: Query<Entity, Added<Controllable>>) {
     for entity in controllable_query.iter() {
         info!("🆕 Controllable entity SPAWNED: {:?}", entity);
     }
 }
-
-

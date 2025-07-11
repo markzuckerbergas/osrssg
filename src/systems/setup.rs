@@ -1,9 +1,5 @@
-use bevy::{
-    gltf::GltfAssetLabel,
-    prelude::*,
-    render::camera::ScalingMode,
-};
 use crate::{components::*, resources::*};
+use bevy::{gltf::GltfAssetLabel, prelude::*, render::camera::ScalingMode};
 use rand::Rng;
 
 /// Sets up the game scene
@@ -42,24 +38,29 @@ pub fn setup_scene(
     // Spawn multiple player units at random positions
     let player_scene = asset_server.load(GltfAssetLabel::Scene(0).from_asset("player.glb"));
     let mut rng = rand::thread_rng();
-    
+
     // Number of characters to spawn
     let num_characters = 5;
     info!("🎭 Spawning {} player characters", num_characters);
-    
+
     for i in 0..num_characters {
         // Random position within a reasonable area
         let x = rng.gen_range(-8.0..8.0);
         let z = rng.gen_range(-8.0..8.0);
-        
+
         let character_transform = Transform {
             translation: Vec3::new(x, 0.05, z),
             scale: Vec3::splat(0.03),
             ..default()
         };
-        
-        info!("👤 Spawning character {} at position ({:.2}, {:.2})", i + 1, x, z);
-        
+
+        info!(
+            "👤 Spawning character {} at position ({:.2}, {:.2})",
+            i + 1,
+            x,
+            z
+        );
+
         commands.spawn((
             SceneRoot(player_scene.clone()),
             character_transform,
