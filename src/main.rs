@@ -13,6 +13,8 @@ fn main() {
         .add_systems(
             Update,
             (
+                // Minimap (runs first to get priority)
+                (handle_minimap_drag, handle_minimap_click),
                 // Input handling
                 (
                     handle_drag_selection_start,
@@ -26,8 +28,8 @@ fn main() {
                 (setup_animation_players, animate_units),
                 // Camera controls
                 (camera_movement, edge_scrolling),
-                // Minimap
-                (update_minimap, toggle_minimap_visibility, handle_minimap_click, handle_minimap_drag),
+                // Minimap updates
+                (update_minimap, toggle_minimap_visibility),
                 // Debug
                 debug_entity_spawning,
                 debug_animation_assets,

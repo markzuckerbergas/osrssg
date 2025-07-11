@@ -63,3 +63,10 @@ pub struct UnitAnimations {
     pub idle_node: AnimationNodeIndex,
     pub animation_graph: Handle<AnimationGraph>,
 }
+
+/// Resource to track minimap drag state
+#[derive(Resource, Default)]
+pub struct MinimapDragState {
+    pub is_dragging: bool,
+    pub last_mouse_pos: Option<Vec2>,
+}

@@ -1,4 +1,5 @@
 use crate::components::*;
+use crate::resources::*;
 use bevy::prelude::*;
 
 /// Legacy single-click selection - now handled by drag selection system
@@ -207,8 +208,14 @@ pub fn handle_drag_selection_start(
     _cameras: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     minimap_query: Query<&Node, With<MinimapUI>>,
     existing_drag: Query<Entity, With<DragSelection>>,
+    minimap_drag_state: Res<MinimapDragState>,
 ) {
     if !buttons.just_pressed(MouseButton::Left) {
+        return;
+    }
+
+    // Don't start drag selection if minimap is being dragged
+    if minimap_drag_state.is_dragging {
         return;
     }
 
@@ -219,7 +226,7 @@ pub fn handle_drag_selection_start(
         return;
     };
 
-    // Check if click is on minimap - if so, don't start drag selection
+    // Check if click is on minimap - if so, don't start drag selection (minimap has priority)
     if let Ok(_minimap_node) = minimap_query.single() {
         let minimap_rect = Rect::from_corners(
             Vec2::new(window.width() - 200.0, window.height() - 200.0),
@@ -227,7 +234,7 @@ pub fn handle_drag_selection_start(
         );
 
         if minimap_rect.contains(cursor_pos) {
-            return; // Don't start drag selection on minimap
+            return; // Don't start drag selection on minimap - let minimap handle it
         }
     }
 
