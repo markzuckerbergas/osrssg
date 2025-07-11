@@ -338,7 +338,7 @@ pub fn handle_drag_selection_update(
     }
 }
 
-/// Completes drag selection when mouse is released (AoE2-style tile-based selection)
+/// Completes drag selection when mouse is released
 pub fn handle_drag_selection_complete(
     mut commands: Commands,
     buttons: Res<ButtonInput<MouseButton>>,
@@ -399,47 +399,58 @@ pub fn handle_drag_selection_complete(
             }
         }
     } else {
-        // Precise screen-space selection (no tolerance buffer)
+        // Drag selection with forgiving buffer
         info!(
-            "🎯 Precise drag selection: ({:.1}, {:.1}) to ({:.1}, {:.1})",
+            "🎯 Drag selection: ({:.1}, {:.1}) to ({:.1}, {:.1})",
             min_x, min_y, max_x, max_y
         );
 
-        // Create precise selection rectangle in screen space
-        let selection_rect = Rect::from_corners(Vec2::new(min_x, min_y), Vec2::new(max_x, max_y));
+        // Slightly enlarge the marquee (±2px) for forgiving selection
+        const SELECTION_TOLERANCE: f32 = 2.0; // pixels
+        let expanded_rect = Rect::from_corners(
+            Vec2::new(min_x - SELECTION_TOLERANCE, min_y - SELECTION_TOLERANCE),
+            Vec2::new(max_x + SELECTION_TOLERANCE, max_y + SELECTION_TOLERANCE)
+        );
 
-        // AoE2 Feature: Collect units with their screen positions for ordering
+        info!(
+            "📏 Expanded selection area: ({:.1}, {:.1}) to ({:.1}, {:.1}) (+{}px buffer)",
+            min_x - SELECTION_TOLERANCE, min_y - SELECTION_TOLERANCE,
+            max_x + SELECTION_TOLERANCE, max_y + SELECTION_TOLERANCE,
+            SELECTION_TOLERANCE
+        );
+
+        // Collect units with their screen positions for ordering
         let mut selectable_units = Vec::new();
 
         for (entity, unit_transform) in units.iter() {
             let unit_world_pos = unit_transform.translation();
 
-            // Convert unit position to screen space for precise selection
+            // Convert unit position to screen space for forgiving selection
             if let Ok(screen_pos) = camera.world_to_viewport(cam_transform, unit_world_pos) {
-                // Only select if the unit's screen position is INSIDE the selection rectangle
-                if selection_rect.contains(screen_pos) {
+                // Use the expanded rectangle for forgiving selection
+                if expanded_rect.contains(screen_pos) {
                     selectable_units.push((entity, screen_pos, unit_world_pos));
                     info!(
-                        "✅ Unit at screen ({:.1}, {:.1}) is inside selection box",
+                        "✅ Unit at screen ({:.1}, {:.1}) is inside selection area",
                         screen_pos.x, screen_pos.y
                     );
                 } else {
                     info!(
-                        "❌ Unit at screen ({:.1}, {:.1}) is outside selection box",
+                        "❌ Unit at screen ({:.1}, {:.1}) is outside selection area",
                         screen_pos.x, screen_pos.y
                     );
                 }
             }
         }
 
-        // AoE2 Feature: Sort by screen Y position (top to bottom priority)
+        // Sort by screen Y position (top to bottom priority)
         selectable_units.sort_by(|a, b| {
             a.1.y
                 .partial_cmp(&b.1.y)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        // AoE2 Feature: Selection limit (40 units in original, 60 in HD)
+        // Selection limit (40 units maximum)
         const MAX_SELECTION: usize = 40;
         let units_to_select = selectable_units.into_iter().take(MAX_SELECTION);
 
@@ -454,7 +465,7 @@ pub fn handle_drag_selection_complete(
     }
 
     info!(
-        "✅ Tile-based drag selection complete: {} units selected",
+        "✅ Drag selection complete: {} units selected",
         selected_count
     );
 
@@ -537,7 +548,7 @@ fn snap_to_grid(position: Vec3) -> Vec3 {
     )
 }
 
-/// AoE2-style double-click selection - selects all visible units of the same type
+/// Double-click selection - selects all visible units of the same type
 pub fn handle_double_click_selection(
     mut commands: Commands,
     buttons: Res<ButtonInput<MouseButton>>,
@@ -593,19 +604,17 @@ pub fn handle_double_click_selection(
             clicked_unit = Some(entity);
             break;
         }
-    }
-
-    if let Some(_clicked_entity) = clicked_unit {
-        // AoE2 Feature: Select all visible units of the same type
+    }    if let Some(_clicked_entity) = clicked_unit {
+        // Select all visible units of the same type
         // For now, we'll select all controllable units on screen (since we don't have unit types yet)
-
+        
         // Deselect current selection
         for entity in selected.iter() {
             commands.entity(entity).remove::<Selected>();
         }
-
+        
         let mut selected_count = 0;
-        const MAX_SELECTION: usize = 40; // AoE2 limit
+        const MAX_SELECTION: usize = 40; // Selection limit
 
         for (entity, unit_transform) in units.iter().take(MAX_SELECTION) {
             let unit_pos = unit_transform.translation();
