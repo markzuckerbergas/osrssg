@@ -31,6 +31,7 @@ fn main() {
                 debug_entity_spawning,
                 debug_animation_assets,
                 debug_moving_components,
+                // debug_collision_circles, // Uncomment to see collision circles
             )
                 .chain(),
         )

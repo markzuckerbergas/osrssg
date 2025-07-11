@@ -35,21 +35,60 @@ pub fn setup_scene(
         Transform::from_xyz(-2.0, 6.0, 2.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    // Spawn multiple player units at random positions
+    // Spawn multiple player units with proper spacing
     let player_scene = asset_server.load(GltfAssetLabel::Scene(0).from_asset("player.glb"));
     let mut rng = rand::thread_rng();
 
     // Number of characters to spawn
     let num_characters = 5;
+    let min_distance = 1.0; // Minimum distance between characters
     info!("🎭 Spawning {} player characters", num_characters);
 
+    let mut spawn_positions = Vec::new();
+
     for i in 0..num_characters {
-        // Random position within a reasonable area
-        let x = rng.gen_range(-8.0..8.0);
-        let z = rng.gen_range(-8.0..8.0);
+        let mut attempts = 0;
+        let max_attempts = 50;
+        let mut valid_position = None;
+
+        // Try to find a valid spawn position that doesn't conflict with existing characters
+        while attempts < max_attempts {
+            let x = rng.gen_range(-8.0..8.0);
+            let z = rng.gen_range(-8.0..8.0);
+            let potential_pos = Vec3::new(x, 0.05, z);
+
+            // Check distance to all previously spawned characters
+            let mut too_close = false;
+            for existing_pos in &spawn_positions {
+                if potential_pos.distance(*existing_pos) < min_distance {
+                    too_close = true;
+                    break;
+                }
+            }
+
+            if !too_close {
+                valid_position = Some(potential_pos);
+                break;
+            }
+
+            attempts += 1;
+        }
+
+        // Use the valid position, or fallback to a grid-based position if we couldn't find one
+        let final_position = valid_position.unwrap_or_else(|| {
+            let row = i / 3;
+            let col = i % 3;
+            Vec3::new(
+                (col as f32 - 1.0) * 1.5,
+                0.05,
+                (row as f32 - 1.0) * 1.5,
+            )
+        });
+
+        spawn_positions.push(final_position);
 
         let character_transform = Transform {
-            translation: Vec3::new(x, 0.05, z),
+            translation: final_position,
             scale: Vec3::splat(0.03),
             ..default()
         };
@@ -57,14 +96,15 @@ pub fn setup_scene(
         info!(
             "👤 Spawning character {} at position ({:.2}, {:.2})",
             i + 1,
-            x,
-            z
+            final_position.x,
+            final_position.z
         );
 
         commands.spawn((
             SceneRoot(player_scene.clone()),
             character_transform,
             Controllable,
+            CollisionRadius::default(),
         ));
     }
 

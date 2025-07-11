@@ -54,3 +54,33 @@ pub struct DragSelectionBox;
 pub struct UnitAnimationPlayer {
     pub unit_entity: Entity,
 }
+
+/// Collision radius for entities
+#[derive(Component)]
+pub struct CollisionRadius {
+    pub radius: f32,
+}
+
+impl Default for CollisionRadius {
+    fn default() -> Self {
+        Self { radius: 0.3 } // Default radius for characters
+    }
+}
+
+/// Tracks how long a unit has been stuck (not making progress)
+#[derive(Component)]
+pub struct StuckTimer {
+    pub timer: f32,
+    pub last_position: Vec3,
+    pub stuck_threshold: f32, // How long before considering stuck
+}
+
+impl Default for StuckTimer {
+    fn default() -> Self {
+        Self {
+            timer: 0.0,
+            last_position: Vec3::ZERO,
+            stuck_threshold: 0.5, // 0.5 seconds of no movement = stuck
+        }
+    }
+}
