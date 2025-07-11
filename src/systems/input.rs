@@ -39,12 +39,71 @@ fn ray_intersects_cylinder(ray: Ray3d, cylinder_center: Vec3, radius: f32, heigh
     horizontal_hit && vertical_hit
 }
 
+/// Checks if a ray intersects with a box (obstacle)
+fn ray_box_intersection(ray: Ray3d, box_center: Vec3, box_size: Vec3) -> bool {
+    let ray_origin = ray.origin;
+    let ray_dir = ray.direction.normalize();
+    
+    // Calculate the box bounds
+    let min_bounds = box_center - box_size * 0.5;
+    let max_bounds = box_center + box_size * 0.5;
+    
+    // Calculate intersection with each axis
+    let t_min_x = (min_bounds.x - ray_origin.x) / ray_dir.x;
+    let t_max_x = (max_bounds.x - ray_origin.x) / ray_dir.x;
+    let t_min_y = (min_bounds.y - ray_origin.y) / ray_dir.y;
+    let t_max_y = (max_bounds.y - ray_origin.y) / ray_dir.y;
+    let t_min_z = (min_bounds.z - ray_origin.z) / ray_dir.z;
+    let t_max_z = (max_bounds.z - ray_origin.z) / ray_dir.z;
+    
+    // Ensure min < max for each axis
+    let (t_min_x, t_max_x) = if t_min_x > t_max_x { (t_max_x, t_min_x) } else { (t_min_x, t_max_x) };
+    let (t_min_y, t_max_y) = if t_min_y > t_max_y { (t_max_y, t_min_y) } else { (t_min_y, t_max_y) };
+    let (t_min_z, t_max_z) = if t_min_z > t_max_z { (t_max_z, t_min_z) } else { (t_min_z, t_max_z) };
+    
+    // Find the intersection range
+    let t_min = t_min_x.max(t_min_y).max(t_min_z);
+    let t_max = t_max_x.min(t_max_y).min(t_max_z);
+    
+    // Check if intersection exists and is in front of the camera
+    t_max >= 0.0 && t_min <= t_max
+}
+
+/// Finds the closest adjacent grid tile to a box (for OSRS-style object interaction)
+fn find_closest_adjacent_tile(box_center: Vec3, from_position: Vec3) -> Vec3 {
+    // Grid-snap the box center
+    let box_grid = snap_to_grid(box_center);
+    
+    // Possible adjacent tiles (4 cardinal directions)
+    let adjacent_tiles = [
+        Vec3::new(box_grid.x + 1.0, box_center.y, box_grid.z), // East
+        Vec3::new(box_grid.x - 1.0, box_center.y, box_grid.z), // West  
+        Vec3::new(box_grid.x, box_center.y, box_grid.z + 1.0), // North
+        Vec3::new(box_grid.x, box_center.y, box_grid.z - 1.0), // South
+    ];
+    
+    // Find the closest adjacent tile to the click position
+    let mut closest_tile = adjacent_tiles[0];
+    let mut closest_distance = from_position.distance(closest_tile);
+    
+    for tile in &adjacent_tiles[1..] {
+        let distance = from_position.distance(*tile);
+        if distance < closest_distance {
+            closest_distance = distance;
+            closest_tile = *tile;
+        }
+    }
+    
+    closest_tile
+}
+
 /// Handles right-click movement commands
 pub fn handle_movement_command(
     buttons: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
     cameras: Query<(&Camera, &GlobalTransform)>,
     selected_units: Query<Entity, With<Selected>>,
+    static_obstacles: Query<&Transform, With<StaticObstacle>>,
     mut commands: Commands,
 ) {
     if !buttons.just_pressed(MouseButton::Right) {
@@ -69,33 +128,60 @@ pub fn handle_movement_command(
         return;
     };
 
-    // Get ground intersection point
-    if let Some(base_destination) = ray_ground_intersection(ray, 0.0) {
-        info!(
-            "🎯 Movement command to: ({:.2}, {:.2}, {:.2})",
-            base_destination.x, base_destination.y, base_destination.z
-        );
-
-        let selected_entities: Vec<Entity> = selected_units.iter().collect();
-        let num_selected = selected_entities.len();
-
-        // Set individual destinations for each selected unit
-        for (index, entity) in selected_entities.iter().enumerate() {
-            let individual_destination = if num_selected == 1 {
-                // Single unit goes to exact destination
-                base_destination
-            } else {
-                // Multiple units get spread out destinations
-                calculate_formation_position(base_destination, index, num_selected)
-            };
-
-            commands.entity(*entity).insert((
-                crate::components::Destination {
-                    target: individual_destination,
-                },
-                Moving,
-            ));
+    // First check if the ray hits any obstacles (boxes)
+    let mut clicked_box: Option<Vec3> = None;
+    for obstacle_transform in static_obstacles.iter() {
+        let box_size = Vec3::new(0.8, 0.5, 0.8); // Size of our boxes
+        if ray_box_intersection(ray, obstacle_transform.translation, box_size) {
+            clicked_box = Some(obstacle_transform.translation);
+            break; // Take the first hit
         }
+    }
+
+    let base_destination = if let Some(box_center) = clicked_box {
+        // Clicked on a box - find the closest adjacent tile
+        let raw_ground_pos = ray_ground_intersection(ray, 0.0).unwrap_or(box_center);
+        let adjacent_tile = find_closest_adjacent_tile(box_center, raw_ground_pos);
+        
+        info!(
+            "📦 Clicked on box at ({:.0}, {:.0}) -> moving to adjacent tile ({:.0}, {:.0})",
+            box_center.x, box_center.z, adjacent_tile.x, adjacent_tile.z
+        );
+        
+        adjacent_tile
+    } else {
+        // Normal ground click - snap to grid
+        if let Some(raw_destination) = ray_ground_intersection(ray, 0.0) {
+            let snapped = snap_to_grid(raw_destination);
+            info!(
+                "🎯 Grid movement command: raw({:.2}, {:.2}) -> grid({:.0}, {:.0})",
+                raw_destination.x, raw_destination.z, snapped.x, snapped.z
+            );
+            snapped
+        } else {
+            return; // No valid ground intersection
+        }
+    };
+
+    let selected_entities: Vec<Entity> = selected_units.iter().collect();
+    let num_selected = selected_entities.len();
+
+    // Set individual destinations for each selected unit
+    for (index, entity) in selected_entities.iter().enumerate() {
+        let individual_destination = if num_selected == 1 {
+            // Single unit goes to the destination (either adjacent tile or grid-snapped)
+            base_destination
+        } else {
+            // Multiple units get spread out destinations (also grid-snapped)
+            snap_to_grid(calculate_formation_position(base_destination, index, num_selected))
+        };
+
+        commands.entity(*entity).insert((
+            crate::components::Destination {
+                target: individual_destination,
+            },
+            Moving,
+        ));
     }
 }
 
@@ -362,4 +448,16 @@ fn calculate_formation_position(base_destination: Vec3, unit_index: usize, total
             base_destination.z + ring_radius * angle.sin(),
         );
     }
+}
+
+// Grid-based movement constants (OSRS style)
+const GRID_SIZE: f32 = 1.0; // Size of each grid square
+
+/// Snaps a world position to the nearest grid center (OSRS-style movement)
+fn snap_to_grid(position: Vec3) -> Vec3 {
+    Vec3::new(
+        (position.x / GRID_SIZE).round() * GRID_SIZE,
+        position.y, // Keep original Y height
+        (position.z / GRID_SIZE).round() * GRID_SIZE,
+    )
 }

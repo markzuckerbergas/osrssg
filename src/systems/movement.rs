@@ -11,7 +11,7 @@ pub fn move_units(
     time: Res<Time>,
 ) {
     let move_speed = 2.0; // units per second
-    let arrival_threshold = 0.1; // how close to consider "arrived"
+    let arrival_threshold = 0.2; // how close to consider "arrived" (larger for grid-based movement)
     let movement_threshold = 0.01; // minimum movement to not be considered stuck
 
     // Collect positions to check for collisions

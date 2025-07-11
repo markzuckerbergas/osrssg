@@ -39,9 +39,20 @@ pub fn setup_scene(
     let player_scene = asset_server.load(GltfAssetLabel::Scene(0).from_asset("player.glb"));
     let mut rng = rand::thread_rng();
 
+    // Define box positions early so we can check against them during character spawning
+    let box_positions = [
+        Vec3::new(2.0, 0.25, 1.0),   // On the road
+        Vec3::new(-3.0, 0.25, -2.0), // On grass
+        Vec3::new(4.0, 0.25, -3.0),  // On grass
+        Vec3::new(-1.0, 0.25, 3.0),  // On road
+        Vec3::new(6.0, 0.25, 2.0),   // On grass (adjusted to grid)
+        Vec3::new(-5.0, 0.25, 0.0),  // On grass
+    ];
+
     // Number of characters to spawn
     let num_characters = 5;
     let min_distance = 1.0; // Minimum distance between characters
+    let box_clearance = 1.0; // Minimum distance from boxes
     info!("🎭 Spawning {} player characters", num_characters);
 
     let mut spawn_positions = Vec::new();
@@ -51,22 +62,34 @@ pub fn setup_scene(
         let max_attempts = 50;
         let mut valid_position = None;
 
-        // Try to find a valid spawn position that doesn't conflict with existing characters
+        // Try to find a valid spawn position that doesn't conflict with existing characters or boxes
         while attempts < max_attempts {
-            let x = rng.gen_range(-8.0..8.0);
-            let z = rng.gen_range(-8.0..8.0);
-            let potential_pos = Vec3::new(x, 0.05, z);
+            let x = rng.gen_range(-8..8) as f32; // Integer grid coordinates
+            let z = rng.gen_range(-8..8) as f32;
+            let potential_pos = Vec3::new(x, 0.05, z); // Grid-aligned position
+
+            let mut position_valid = true;
 
             // Check distance to all previously spawned characters
-            let mut too_close = false;
             for existing_pos in &spawn_positions {
                 if potential_pos.distance(*existing_pos) < min_distance {
-                    too_close = true;
+                    position_valid = false;
                     break;
                 }
             }
 
-            if !too_close {
+            // Check distance to all boxes (only check if character check passed)
+            if position_valid {
+                for box_pos in &box_positions {
+                    let box_ground_pos = Vec3::new(box_pos.x, potential_pos.y, box_pos.z); // Same Y level for distance calc
+                    if potential_pos.distance(box_ground_pos) < box_clearance {
+                        position_valid = false;
+                        break;
+                    }
+                }
+            }
+
+            if position_valid {
                 valid_position = Some(potential_pos);
                 break;
             }
@@ -74,15 +97,47 @@ pub fn setup_scene(
             attempts += 1;
         }
 
-        // Use the valid position, or fallback to a grid-based position if we couldn't find one
+        // Use the valid position, or fallback to a safe grid-based position if we couldn't find one
         let final_position = valid_position.unwrap_or_else(|| {
-            let row = i / 3;
-            let col = i % 3;
-            Vec3::new(
-                (col as f32 - 1.0) * 1.5,
-                0.05,
-                (row as f32 - 1.0) * 1.5,
-            )
+            // Try fallback positions that avoid both characters and boxes
+            for fallback_attempt in 0..20 {
+                let row = (i + fallback_attempt) / 5;
+                let col = (i + fallback_attempt) % 5;
+                let fallback_pos = Vec3::new(
+                    col as f32 - 2.0, // Start further from center
+                    0.05,
+                    row as f32 - 2.0,
+                );
+                
+                // Check if this fallback position is safe
+                let mut safe = true;
+                
+                // Check against existing characters
+                for existing_pos in &spawn_positions {
+                    if fallback_pos.distance(*existing_pos) < min_distance {
+                        safe = false;
+                        break;
+                    }
+                }
+                
+                // Check against boxes
+                if safe {
+                    for box_pos in &box_positions {
+                        let box_ground_pos = Vec3::new(box_pos.x, fallback_pos.y, box_pos.z);
+                        if fallback_pos.distance(box_ground_pos) < box_clearance {
+                            safe = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if safe {
+                    return fallback_pos;
+                }
+            }
+            
+            // Final emergency fallback - far from everything
+            Vec3::new((i as f32) * 2.0 - 10.0, 0.05, -10.0)
         });
 
         spawn_positions.push(final_position);
@@ -157,16 +212,7 @@ pub fn setup_scene(
         ..default()
     });
 
-    // Create several boxes scattered around the scene
-    let box_positions = [
-        Vec3::new(2.0, 0.25, 1.0),   // On the road
-        Vec3::new(-3.0, 0.25, -2.0), // On grass
-        Vec3::new(4.0, 0.25, -3.0),  // On grass
-        Vec3::new(-1.0, 0.25, 3.0),  // On road
-        Vec3::new(5.5, 0.25, 2.0),   // On grass
-        Vec3::new(-5.0, 0.25, 0.0),  // On grass
-    ];
-
+    // Use the box positions we defined earlier (now characters have spawned safely around them)
     for (i, position) in box_positions.iter().enumerate() {
         info!("📦 Spawning obstacle box {} at position ({:.2}, {:.2})", i + 1, position.x, position.z);
         
