@@ -55,3 +55,9 @@ pub struct DragSelection {
 /// Marks the drag selection box UI element
 #[derive(Component)]
 pub struct DragSelectionBox;
+
+/// Links an AnimationPlayer to its parent controllable unit
+#[derive(Component)]
+pub struct UnitAnimationPlayer {
+    pub unit_entity: Entity,
+}

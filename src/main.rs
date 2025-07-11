@@ -25,11 +25,11 @@ fn main() {
                 // Input handling (first)
                 (handle_drag_selection_start, handle_drag_selection_update, handle_drag_selection_complete, handle_movement_command),
                 
-                // Animation setup and animation logic
-                (setup_animation_players, animate_units),
-                
-                // Movement (runs after animations to override any position changes)
+                // Movement (runs before animations so they can detect component changes)
                 move_units,
+                
+                // Animation setup and animation logic (runs after movement to detect Moving component changes)
+                (setup_animation_players, animate_units),
                 
                 // Camera controls (enhanced with edge scrolling and bounds, zoom disabled)
                 (camera_movement, edge_scrolling),
@@ -39,6 +39,7 @@ fn main() {
                 
                 // Debug systems
                 debug_animation_assets,
+                debug_moving_components,
             ).chain()  // Run systems in this exact order
         )
         .run();
