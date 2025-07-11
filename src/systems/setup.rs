@@ -187,6 +187,8 @@ pub fn setup_scene(
                 viewport_height: 2.0,
             },
             scale: 8.0,
+            near: -50.0,  // Extended near plane (negative for orthographic)
+            far: 50.0,    // Extended far plane
             ..OrthographicProjection::default_3d()
         }),
         Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
