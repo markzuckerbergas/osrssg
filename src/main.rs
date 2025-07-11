@@ -36,6 +36,8 @@ fn main() {
                     handle_movement_command,
                     issue_gather_task, // Process gather events right after movement commands
                 ),
+                // Gathering state machine
+                process_gathering_state_machine,
                 // UI interactions
                 handle_spawn_button,
                 // Movement
