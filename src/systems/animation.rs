@@ -11,15 +11,15 @@ pub fn setup_animations(
     info!("🔄 Setting up animation system");
     
     // Load animations using the modern GltfAssetLabel format
-    // Animation0 = walk, Animation1 = idle (confirmed by user)
+    // Animation0 = walk, Animation1 = idle
     let animation_0 = asset_server.load(GltfAssetLabel::Animation(0).from_asset("player.glb")); // walk
     let animation_1 = asset_server.load(GltfAssetLabel::Animation(1).from_asset("player.glb")); // idle
     
     info!("📦 Loading animations: anim0={:?}, anim1={:?}", animation_0, animation_1);
     
     // Create animation graph with both clips
-    // Animation0 = walk, Animation1 = idle (as you confirmed)
-    // So we assign them correctly: walk_node gets animation_0, idle_node gets animation_1
+    // Animation0 = walk, Animation1 = idle
+    // Assign them correctly: walk_node gets animation_0, idle_node gets animation_1
     let mut animation_graph = AnimationGraph::new();
     let walk_node = animation_graph.add_clip(animation_0, 1.0, animation_graph.root); // animation_0 = walk
     let idle_node = animation_graph.add_clip(animation_1, 1.0, animation_graph.root); // animation_1 = idle
