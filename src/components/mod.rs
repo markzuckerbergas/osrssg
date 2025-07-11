@@ -80,7 +80,7 @@ impl Default for StuckTimer {
         Self {
             timer: 0.0,
             last_position: Vec3::ZERO,
-            stuck_threshold: 0.5, // 0.5 seconds of no movement = stuck
+            stuck_threshold: 1.5, // 1.5 seconds of no movement = stuck (increased for better navigation)
         }
     }
 }

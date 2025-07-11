@@ -70,17 +70,28 @@ pub fn handle_movement_command(
     };
 
     // Get ground intersection point
-    if let Some(destination) = ray_ground_intersection(ray, 0.0) {
+    if let Some(base_destination) = ray_ground_intersection(ray, 0.0) {
         info!(
             "🎯 Movement command to: ({:.2}, {:.2}, {:.2})",
-            destination.x, destination.y, destination.z
+            base_destination.x, base_destination.y, base_destination.z
         );
 
-        // Set individual destination for each selected unit
-        for entity in selected_units.iter() {
-            commands.entity(entity).insert((
+        let selected_entities: Vec<Entity> = selected_units.iter().collect();
+        let num_selected = selected_entities.len();
+
+        // Set individual destinations for each selected unit
+        for (index, entity) in selected_entities.iter().enumerate() {
+            let individual_destination = if num_selected == 1 {
+                // Single unit goes to exact destination
+                base_destination
+            } else {
+                // Multiple units get spread out destinations
+                calculate_formation_position(base_destination, index, num_selected)
+            };
+
+            commands.entity(*entity).insert((
                 crate::components::Destination {
-                    target: destination,
+                    target: individual_destination,
                 },
                 Moving,
             ));
@@ -308,5 +319,47 @@ fn cleanup_drag_selection(
     // Remove drag selection box
     for entity in box_query.iter() {
         commands.entity(entity).despawn();
+    }
+}
+
+/// Calculates individual formation positions for multiple selected units
+fn calculate_formation_position(base_destination: Vec3, unit_index: usize, total_units: usize) -> Vec3 {
+    if total_units <= 1 {
+        return base_destination;
+    }
+
+    let formation_radius = 1.0; // Base radius for formation
+    let expanded_radius = formation_radius * (1.0 + (total_units as f32 * 0.2)); // Expand for more units
+
+    if total_units == 2 {
+        // Two units: place them side by side
+        let offset = if unit_index == 0 { -0.7 } else { 0.7 };
+        return Vec3::new(
+            base_destination.x + offset,
+            base_destination.y,
+            base_destination.z,
+        );
+    } else if total_units <= 6 {
+        // Small group: arrange in a circle around the destination
+        let angle = (unit_index as f32 / total_units as f32) * 2.0 * std::f32::consts::PI;
+        return Vec3::new(
+            base_destination.x + expanded_radius * angle.cos(),
+            base_destination.y,
+            base_destination.z + expanded_radius * angle.sin(),
+        );
+    } else {
+        // Large group: arrange in concentric circles
+        let units_per_ring = 6;
+        let ring = unit_index / units_per_ring;
+        let position_in_ring = unit_index % units_per_ring;
+        
+        let ring_radius = expanded_radius * (1.0 + ring as f32 * 0.8);
+        let angle = (position_in_ring as f32 / units_per_ring as f32) * 2.0 * std::f32::consts::PI;
+        
+        return Vec3::new(
+            base_destination.x + ring_radius * angle.cos(),
+            base_destination.y,
+            base_destination.z + ring_radius * angle.sin(),
+        );
     }
 }

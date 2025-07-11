@@ -1,5 +1,6 @@
 use crate::components::*;
 use bevy::prelude::*;
+use rand::Rng;
 
 /// Moves units toward their individual destinations with collision detection
 pub fn move_units(
@@ -63,7 +64,7 @@ pub fn move_units(
 
             // Check for collisions with other units
             let mut can_move = true;
-            let mut avoidance_direction = Vec3::ZERO;
+            let mut final_position = desired_position;
             
             for (other_entity, other_pos, other_radius) in &unit_positions {
                 // Skip checking collision with self
@@ -77,19 +78,79 @@ pub fn move_units(
                 if distance_to_other < combined_radius {
                     can_move = false;
                     
-                    // Calculate avoidance direction (perpendicular to movement and away from obstacle)
-                    let to_obstacle = (*other_pos - current_pos).normalize_or_zero();
-                    let perpendicular = Vec3::new(-to_obstacle.z, 0.0, to_obstacle.x);
+                    // Try multiple avoidance strategies with randomization to break deadlocks
+                    let mut rng = rand::thread_rng();
+                    let random_factor = rng.gen_range(-0.3..0.3); // Add some randomness
+                    let entity_seed = entity.index() as f32 * 0.1; // Use entity ID for consistent but different behavior
                     
-                    // Choose the perpendicular direction that's closer to the target
-                    let option1 = current_pos + perpendicular * move_distance;
-                    let option2 = current_pos - perpendicular * move_distance;
+                    let avoidance_attempts = [
+                        // Strategy 1: Perpendicular avoidance with randomization
+                        {
+                            let to_obstacle = (*other_pos - current_pos).normalize_or_zero();
+                            let perpendicular = Vec3::new(-to_obstacle.z, 0.0, to_obstacle.x);
+                            let option1 = current_pos + (perpendicular + Vec3::new(random_factor, 0.0, entity_seed)) * move_distance;
+                            let option2 = current_pos + (-perpendicular + Vec3::new(-random_factor, 0.0, -entity_seed)) * move_distance;
+                            let dist1 = option1.distance(target_pos);
+                            let dist2 = option2.distance(target_pos);
+                            if dist1 < dist2 { option1 } else { option2 }
+                        },
+                        // Strategy 2: Step back and try again (with slight randomization)
+                        current_pos + direction * (move_distance * (0.2 + random_factor.abs())),
+                        // Strategy 3: Move at an angle towards target (randomized angle)
+                        {
+                            let to_target = (target_pos - current_pos).normalize_or_zero();
+                            let angle_offset = (std::f32::consts::PI / 4.0) + random_factor + entity_seed;
+                            let rotated_dir = Vec3::new(
+                                to_target.x * angle_offset.cos() - to_target.z * angle_offset.sin(),
+                                0.0,
+                                to_target.x * angle_offset.sin() + to_target.z * angle_offset.cos(),
+                            );
+                            current_pos + rotated_dir * move_distance
+                        },
+                        // Strategy 4: Try the opposite randomized angle
+                        {
+                            let to_target = (target_pos - current_pos).normalize_or_zero();
+                            let angle_offset = -(std::f32::consts::PI / 4.0) - random_factor - entity_seed;
+                            let rotated_dir = Vec3::new(
+                                to_target.x * angle_offset.cos() - to_target.z * angle_offset.sin(),
+                                0.0,
+                                to_target.x * angle_offset.sin() + to_target.z * angle_offset.cos(),
+                            );
+                            current_pos + rotated_dir * move_distance
+                        },
+                        // Strategy 5: Random lateral movement (emergency deadlock breaker)
+                        {
+                            let random_angle = rng.gen_range(0.0..2.0 * std::f32::consts::PI);
+                            let random_dir = Vec3::new(random_angle.cos(), 0.0, random_angle.sin());
+                            current_pos + random_dir * (move_distance * 0.5)
+                        },
+                    ];
                     
-                    let dist1 = option1.distance(target_pos);
-                    let dist2 = option2.distance(target_pos);
+                    // Try each avoidance strategy
+                    for attempt_pos in &avoidance_attempts {
+                        let mut attempt_clear = true;
+                        for (check_entity, check_pos, check_radius) in &unit_positions {
+                            if *check_entity == entity {
+                                continue;
+                            }
+                            let check_distance = attempt_pos.distance(*check_pos);
+                            let check_combined_radius = collision_radius.radius + check_radius + 0.1;
+                            if check_distance < check_combined_radius {
+                                attempt_clear = false;
+                                break;
+                            }
+                        }
+                        
+                        if attempt_clear {
+                            final_position = *attempt_pos;
+                            can_move = true;
+                            break;
+                        }
+                    }
                     
-                    avoidance_direction = if dist1 < dist2 { perpendicular } else { -perpendicular };
-                    break;
+                    if can_move {
+                        break; // Found a solution, no need to check other obstacles
+                    }
                 }
             }
             
@@ -97,35 +158,11 @@ pub fn move_units(
             let old_position = current_pos;
             
             if can_move {
-                // Move directly toward target
-                transform.translation = desired_position;
+                // Move to the calculated position (either direct or avoidance)
+                transform.translation = final_position;
                 actually_moved = true;
-            } else {
-                // Try to move around the obstacle
-                let avoidance_position = current_pos + avoidance_direction * move_distance;
-                
-                // Check if avoidance path is clear
-                let mut avoidance_clear = true;
-                for (other_entity, other_pos, other_radius) in &unit_positions {
-                    if *other_entity == entity {
-                        continue;
-                    }
-                    
-                    let distance_to_other = avoidance_position.distance(*other_pos);
-                    let combined_radius = collision_radius.radius + other_radius + 0.1;
-                    
-                    if distance_to_other < combined_radius {
-                        avoidance_clear = false;
-                        break;
-                    }
-                }
-                
-                if avoidance_clear {
-                    transform.translation = avoidance_position;
-                    actually_moved = true;
-                }
-                // If can't move at all, actually_moved remains false
             }
+            // If completely blocked, actually_moved remains false
 
             // Update stuck timer
             if actually_moved && old_position.distance(transform.translation) > movement_threshold {
