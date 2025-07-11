@@ -7,11 +7,11 @@ A real-time strategy game that merges the immersive world of Old School RuneScap
 - **Precise Unit Selection**: Left-click anywhere on a character (legs, torso, head) to select them
 - **Movement Commands**: Right-click to move selected units  
 - **Enhanced Camera System**: Classic RTS-style view with multiple control options
-  - **Arrow Keys**: Manual camera movement with bounds checking
+  - **Arrow Keys**: Manual camera movement (left/right/up/down in world coordinates)
   - **Edge Scrolling**: Move camera by moving mouse to screen edges
   - **Camera Bounds**: Prevents camera from moving too far from action area
-  - **Zoom Controls**: Mouse wheel zoom with min/max limits
-  - **Minimap**: Bottom-right overlay showing game area and player positions (Press M to toggle)
+  - **Fixed Zoom**: Standard zoom level for optimal gameplay visibility
+  - **Minimap**: Bottom-right overlay showing game area, player positions, and camera viewport (Press M to toggle)
 - **Smooth Animations**: Walking and idle animations for units
 
 ## 🛠️ Technology Stack
@@ -39,9 +39,8 @@ cargo run
 
 ### Controls
 
-- **Arrow Keys**: Move camera around the map (with boundary limits)
+- **Arrow Keys**: Move camera around the map (left/right/up/down in world coordinates)
 - **Mouse Edge Scrolling**: Move mouse to screen edges to scroll camera
-- **Mouse Wheel**: Zoom in/out (with min/max limits)
 - **Left Click**: Select a unit (click anywhere on the character model)
 - **Right Click**: Move selected unit to clicked location
 - **M Key**: Toggle minimap visibility

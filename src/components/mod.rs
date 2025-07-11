@@ -33,3 +33,14 @@ pub struct MinimapUI;
 /// Marks a player dot on the minimap
 #[derive(Component)]
 pub struct MinimapPlayerDot;
+
+/// Marks the camera viewport indicator on the minimap
+#[derive(Component)]
+pub struct MinimapCameraViewport;
+
+/// Tracks dragging state for the minimap viewport
+#[derive(Component)]
+pub struct MinimapViewportDragging {
+    pub start_cursor_pos: Vec2,
+    pub start_camera_pos: Vec3,
+}

@@ -10,23 +10,30 @@ pub fn camera_movement(
     time: Res<Time>,
 ) {
     for mut transform in cameras.iter_mut() {
-        let mut direction = Vec3::ZERO;
+        let mut local_direction = Vec3::ZERO;
         
+        // Use camera's local coordinate system for intuitive movement
+        // This accounts for the camera's rotation automatically
         if keys.pressed(KeyCode::ArrowLeft) {
-            direction -= transform.rotation * Vec3::X;
+            local_direction.x -= 1.0;  // Move left relative to camera
         }
         if keys.pressed(KeyCode::ArrowRight) {
-            direction += transform.rotation * Vec3::X;
+            local_direction.x += 1.0;  // Move right relative to camera
         }
         if keys.pressed(KeyCode::ArrowUp) {
-            direction += transform.rotation * Vec3::Y;
+            local_direction.z -= 1.0;  // Move forward relative to camera
         }
         if keys.pressed(KeyCode::ArrowDown) {
-            direction -= transform.rotation * Vec3::Y;
+            local_direction.z += 1.0;  // Move backward relative to camera
         }
         
-        if direction != Vec3::ZERO {
-            let movement = direction.normalize() * settings.move_speed * time.delta_secs();
+        if local_direction != Vec3::ZERO {
+            // Transform the local direction to world space using camera rotation
+            let world_direction = transform.rotation * local_direction;
+            
+            // Only use X and Z components for movement (ignore Y to prevent vertical drift)
+            let movement = Vec3::new(world_direction.x, 0.0, world_direction.z).normalize() * settings.move_speed * time.delta_secs();
+            
             let new_position = transform.translation + movement;
             
             // Apply camera bounds
@@ -53,27 +60,32 @@ pub fn edge_scrolling(
     let margin = settings.edge_scroll_margin;
     
     for mut transform in cameras.iter_mut() {
-        let mut direction = Vec3::ZERO;
+        let mut local_direction = Vec3::ZERO;
         
-        // Check edges and calculate scroll direction
+        // Map screen edges to camera-relative directions for consistency
         if cursor_position.x < margin {
-            // Left edge
-            direction -= transform.rotation * Vec3::X;
+            // Left edge of screen
+            local_direction.x -= 1.0;  // Move left relative to camera
         } else if cursor_position.x > window_size.x - margin {
-            // Right edge
-            direction += transform.rotation * Vec3::X;
+            // Right edge of screen
+            local_direction.x += 1.0;  // Move right relative to camera
         }
         
         if cursor_position.y < margin {
-            // Top edge (in screen coordinates, Y=0 is top)
-            direction += transform.rotation * Vec3::Y;
+            // Top edge of screen (Y=0 is top in screen coordinates)
+            local_direction.z -= 1.0;  // Move forward relative to camera
         } else if cursor_position.y > window_size.y - margin {
-            // Bottom edge
-            direction -= transform.rotation * Vec3::Y;
+            // Bottom edge of screen
+            local_direction.z += 1.0;  // Move backward relative to camera
         }
         
-        if direction != Vec3::ZERO {
-            let movement = direction.normalize() * settings.edge_scroll_speed * time.delta_secs();
+        if local_direction != Vec3::ZERO {
+            // Transform the local direction to world space using camera rotation
+            let world_direction = transform.rotation * local_direction;
+            
+            // Only use X and Z components for movement (ignore Y to prevent vertical drift)
+            let movement = Vec3::new(world_direction.x, 0.0, world_direction.z).normalize() * settings.edge_scroll_speed * time.delta_secs();
+            
             let new_position = transform.translation + movement;
             
             // Apply camera bounds

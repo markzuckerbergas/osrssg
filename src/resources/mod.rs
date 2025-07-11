@@ -25,13 +25,13 @@ impl Default for CameraSettings {
     fn default() -> Self {
         Self {
             move_speed: 8.0,        // Matched with edge_scroll_speed for consistency
-            zoom_speed: 0.1,
-            min_zoom: 1.0,
-            max_zoom: 10.0,
+            zoom_speed: 0.0,        // Disabled zoom for now
+            min_zoom: 1.0,          // Standard zoom level (fixed)
+            max_zoom: 1.0,          // Standard zoom level (fixed)
             edge_scroll_margin: 50.0, // Pixels from edge to trigger scrolling
-            edge_scroll_speed: 8.0,   // Speed multiplier for edge scrolling (increased from 3.0)
-            bounds_min: Vec3::new(-20.0, 0.0, -20.0), // Camera bounds
-            bounds_max: Vec3::new(20.0, 10.0, 20.0),
+            edge_scroll_speed: 8.0,   // Speed multiplier for edge scrolling
+            bounds_min: Vec3::new(-50.0, 0.0, -50.0), // Expanded camera bounds
+            bounds_max: Vec3::new(50.0, 15.0, 50.0),  // Expanded camera bounds
         }
     }
 }
@@ -50,7 +50,7 @@ impl Default for MinimapSettings {
         Self {
             size: Vec2::new(200.0, 200.0),
             position: Vec2::new(0.98, 0.98), // Bottom-right corner with small margin
-            world_size: Vec2::new(40.0, 40.0), // 40x40 world units
+            world_size: Vec2::new(100.0, 100.0), // 100x100 world units (matches expanded bounds)
             zoom: 0.1,
         }
     }

@@ -31,11 +31,11 @@ fn main() {
                 // Movement (runs after animations to override any position changes)
                 move_units,
                 
-                // Camera controls (enhanced with edge scrolling and bounds)
-                (camera_movement, camera_zoom, edge_scrolling),
+                // Camera controls (enhanced with edge scrolling and bounds, zoom disabled)
+                (camera_movement, edge_scrolling),
                 
                 // Minimap updates
-                (update_minimap, toggle_minimap_visibility),
+                (update_minimap, toggle_minimap_visibility, handle_minimap_click, handle_minimap_viewport_drag_start, handle_minimap_viewport_drag, update_minimap_viewport_appearance),
                 
                 // Debug systems
                 debug_animation_assets,
