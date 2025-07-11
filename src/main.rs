@@ -23,7 +23,7 @@ fn main() {
             Update,
             (
                 // Input handling (first)
-                (handle_unit_selection, handle_movement_command),
+                (handle_drag_selection_start, handle_drag_selection_update, handle_drag_selection_complete, handle_movement_command),
                 
                 // Animation setup and animation logic
                 (setup_animation_players, animate_units),

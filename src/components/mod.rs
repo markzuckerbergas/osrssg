@@ -44,3 +44,14 @@ pub struct MinimapViewportDragging {
     pub start_cursor_pos: Vec2,
     pub start_camera_pos: Vec3,
 }
+
+/// Tracks drag selection state
+#[derive(Component)]
+pub struct DragSelection {
+    pub start_pos: Vec2,
+    pub current_pos: Vec2,
+}
+
+/// Marks the drag selection box UI element
+#[derive(Component)]
+pub struct DragSelectionBox;

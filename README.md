@@ -5,6 +5,7 @@ A real-time strategy game that merges the immersive world of Old School RuneScap
 ## 🎮 Game Features
 
 - **Precise Unit Selection**: Left-click anywhere on a character (legs, torso, head) to select them
+- **Multiple Unit Selection**: Drag to create a selection box and select multiple units at once
 - **Movement Commands**: Right-click to move selected units  
 - **Enhanced Camera System**: Classic RTS-style view with multiple control options
   - **Arrow Keys**: Manual camera movement (left/right/up/down in world coordinates)
@@ -42,7 +43,8 @@ cargo run
 - **Arrow Keys**: Move camera around the map (left/right/up/down in world coordinates)
 - **Mouse Edge Scrolling**: Move mouse to screen edges to scroll camera
 - **Left Click**: Select a unit (click anywhere on the character model)
-- **Right Click**: Move selected unit to clicked location
+- **Left Click + Drag**: Create a selection box to select multiple units
+- **Right Click**: Move selected unit(s) to clicked location
 - **M Key**: Toggle minimap visibility
 
 ## 📁 Project Structure
@@ -80,7 +82,7 @@ src/
 - `MinimapSettings`: Configuration for future minimap implementation
 
 **Systems** contain the game logic:
-- Input handling (selection and movement commands)
+- Input handling (selection, multi-selection, and movement commands)
 - Enhanced camera controls (movement, zoom, edge scrolling, and bounds)
 - Unit movement and animation updates
 
@@ -133,7 +135,7 @@ The game can be compiled to WebAssembly for web deployment:
 ## 🎯 Next Steps & TODOs
 
 ### Immediate Improvements
-- [ ] Multiple unit selection (drag selection box)
+- [x] Multiple unit selection (drag selection box)
 - [ ] Unit health and combat system
 - [ ] Resource gathering mechanics
 - [ ] Building construction
