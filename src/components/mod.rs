@@ -38,13 +38,6 @@ pub struct MinimapPlayerDot;
 #[derive(Component)]
 pub struct MinimapCameraViewport;
 
-/// Tracks dragging state for the minimap viewport
-#[derive(Component)]
-pub struct MinimapViewportDragging {
-    pub start_cursor_pos: Vec2,
-    pub start_camera_pos: Vec3,
-}
-
 /// Tracks drag selection state
 #[derive(Component)]
 pub struct DragSelection {

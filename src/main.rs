@@ -26,14 +26,7 @@ fn main() {
                 // Camera controls
                 (camera_movement, edge_scrolling),
                 // Minimap
-                (
-                    update_minimap,
-                    toggle_minimap_visibility,
-                    handle_minimap_click,
-                    handle_minimap_viewport_drag_start,
-                    handle_minimap_viewport_drag,
-                    update_minimap_viewport_appearance,
-                ),
+                (update_minimap, toggle_minimap_visibility, handle_minimap_click),
                 // Debug
                 debug_entity_spawning,
                 debug_animation_assets,

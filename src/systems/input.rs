@@ -107,7 +107,7 @@ pub fn handle_drag_selection_start(
     mut commands: Commands,
     buttons: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
-    cameras: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    _cameras: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     minimap_query: Query<&Node, With<MinimapUI>>,
     existing_drag: Query<Entity, With<DragSelection>>,
 ) {
@@ -177,7 +177,7 @@ pub fn handle_drag_selection_start(
 pub fn handle_drag_selection_update(
     mut drag_query: Query<&mut DragSelection>,
     mut box_query: Query<&mut Node, With<DragSelectionBox>>,
-    buttons: Res<ButtonInput<MouseButton>>,
+    _buttons: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
 ) {
     if drag_query.is_empty() {
@@ -224,7 +224,7 @@ pub fn handle_drag_selection_complete(
         return;
     }
 
-    let Ok(window) = windows.single() else {
+    let Ok(_window) = windows.single() else {
         return;
     };
     let Ok((camera, cam_transform)) = cameras.single() else {
