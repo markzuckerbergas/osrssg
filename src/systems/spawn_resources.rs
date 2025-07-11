@@ -71,26 +71,26 @@ pub fn spawn_resources(
 
     // Create materials for different resource types
     let tree_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.1, 0.7, 0.1), // Bright green for trees
+        base_color: Color::srgb(0.2, 0.8, 0.2), // Brighter green for trees
         metallic: 0.0,
-        perceptual_roughness: 0.9,
+        perceptual_roughness: 0.8,
         reflectance: 0.0,
         ..default()
     });
 
     let copper_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.8, 0.5, 0.2), // Bright copper color
-        metallic: 0.2,
-        perceptual_roughness: 0.7,
-        reflectance: 0.1,
+        base_color: Color::srgb(0.9, 0.6, 0.3), // Brighter copper/orange color
+        metallic: 0.3,
+        perceptual_roughness: 0.6,
+        reflectance: 0.2,
         ..default()
     });
 
     let tin_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.7, 0.7, 0.8), // Bright silver-ish for tin
-        metallic: 0.3,
-        perceptual_roughness: 0.6,
-        reflectance: 0.15,
+        base_color: Color::srgb(0.8, 0.8, 0.9), // Brighter silver-blue for tin
+        metallic: 0.4,
+        perceptual_roughness: 0.5,
+        reflectance: 0.3,
         ..default()
     });
 

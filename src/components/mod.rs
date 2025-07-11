@@ -5,27 +5,39 @@ use bevy::prelude::*;
 // This module implements a RuneScape-style resource gathering system with:
 // - Mining: Copper ore (level 1), Tin ore (level 1) 
 // - Woodcutting: Normal logs (level 1)
-// - 28-slot inventories with stackable items
+// - 28-slot inventories with 1 item per slot (no stacking)
 // - Experience points matching OSRS values
 // - State-machine driven gathering AI (Walking → Harvesting → Full)
 //
 // The system follows OSRS mechanics:
 // - Copper/Tin ore: 17.5 XP each (level 1 mining)
 // - Normal logs: 25 XP each (level 1 woodcutting)
-// - High stack limits (28,000 per stack)
+// - No stacking: each slot holds exactly 1 resource
 // - Close gather radius (1.5 units) 
 //
 // Key components:
 // - ResourceNode: Marks gatherable resources in the world
-// - Inventory: Per-unit 28-slot bag with OSRS semantics
+// - Inventory: Per-unit 28-slot bag with 1 item per slot
 // - GatherTask: State machine for gathering behavior
-// - Capacity: Inventory limits and stack sizes
+// - Capacity: Inventory limits (28 slots max)
 
 /// Event emitted when a unit should gather from a resource node
 #[derive(Event)]
 pub struct GatherEvent {
     pub unit: Entity,
     pub resource: Entity,
+}
+
+/// Event emitted when unit selection changes
+#[derive(Event)]
+pub struct SelectionChanged {
+    pub selected_units: Vec<Entity>,
+}
+
+/// Event emitted when a unit's inventory changes
+#[derive(Event)]
+pub struct InventoryChanged {
+    pub unit: Entity,
 }
 
 /// Marks an entity as selected by the player
@@ -65,6 +77,20 @@ pub struct MinimapPlayerDot;
 /// Marks the camera viewport indicator on the minimap
 #[derive(Component)]
 pub struct MinimapCameraViewport;
+
+/// Marks the inventory UI root container
+#[derive(Component)]
+pub struct InventoryRoot;
+
+/// Marks an inventory slot UI element
+#[derive(Component)]
+pub struct InventorySlot {
+    pub slot_index: usize,
+}
+
+/// Marks the inventory border/background UI element
+#[derive(Component)]
+pub struct InventoryBorder;
 
 /// Tracks drag selection state
 #[derive(Component)]
@@ -126,8 +152,8 @@ impl ResourceKind {
     /// Get the base gather rate (items per second)
     pub fn base_gather_rate(&self) -> f32 {
         match self {
-            ResourceKind::Copper => 0.8,   // Slightly slower for mining
-            ResourceKind::Tin => 0.8,      // Slightly slower for mining
+            ResourceKind::Copper => 1.0,   // Same rate as logs for testing
+            ResourceKind::Tin => 1.0,      // Same rate as logs for testing
             ResourceKind::Wood => 1.2,     // Faster for woodcutting
         }
     }
@@ -153,22 +179,22 @@ impl ItemId {
         }
     }
 
-    /// Get the maximum stack size for this item (RuneScape-like)
+    /// Get the maximum stack size for this item (1 per slot)
     pub fn max_stack_size(&self) -> u16 {
         match self {
-            // All items can stack up to a high number like in OSRS
-            ItemId::CopperOre => 28000,  // Very high stack limit
-            ItemId::TinOre => 28000,     // Very high stack limit  
-            ItemId::Logs => 28000,       // Very high stack limit
+            // Each slot holds exactly 1 resource (no stacking)
+            ItemId::CopperOre => 1,  // 1 copper ore per slot
+            ItemId::TinOre => 1,     // 1 tin ore per slot  
+            ItemId::Logs => 1,       // 1 log per slot
         }
     }
 
     /// Get the item color for UI display
     pub fn ui_color(&self) -> [f32; 4] {
         match self {
-            ItemId::CopperOre => [0.7, 0.4, 0.2, 1.0], // Copper brown
-            ItemId::TinOre => [0.6, 0.6, 0.7, 1.0],    // Silver-ish
-            ItemId::Logs => [0.6, 0.4, 0.2, 1.0],      // Brown wood color
+            ItemId::CopperOre => [0.9, 0.6, 0.3, 1.0], // Bright copper/orange (matches world color)
+            ItemId::TinOre => [0.8, 0.8, 0.9, 1.0],    // Bright silver-blue (matches world color)
+            ItemId::Logs => [0.2, 0.8, 0.2, 1.0],      // Bright green (matches world color)
         }
     }
 }
@@ -302,7 +328,7 @@ impl Default for Capacity {
     fn default() -> Self {
         Self {
             max_slots: 28,   // OSRS-style 28 slots
-            max_stack: 10000, // Reasonable stack limit
+            max_stack: 1,    // 1 item per slot (no stacking)
         }
     }
 }

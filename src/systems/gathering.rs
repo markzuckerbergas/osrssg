@@ -74,6 +74,7 @@ pub fn process_gathering_state_machine(
     time: Res<Time>,
     mut units: Query<(Entity, &Transform, &mut GatherTask, &mut Inventory), With<Controllable>>,
     mut resource_nodes: Query<(&mut ResourceNode, &Transform), (With<ResourceNode>, Without<Controllable>)>,
+    mut inventory_events: EventWriter<InventoryChanged>,
     mut commands: Commands,
 ) {
     for (unit_entity, unit_transform, mut gather_task, mut inventory) in units.iter_mut() {
@@ -127,9 +128,33 @@ pub fn process_gathering_state_machine(
 
                 // Process gathering timer
                 gather_task.timer.tick(time.delta());
+                
+                // Debug: Show timer progress every few seconds for copper/tin
+                if matches!(resource_node.kind, ResourceKind::Copper | ResourceKind::Tin) {
+                    let elapsed = gather_task.timer.elapsed_secs();
+                    let duration = gather_task.timer.duration().as_secs_f32();
+                    if elapsed % 0.5 < time.delta().as_secs_f32() { // Every 0.5 seconds
+                        info!(
+                            "⏰ {} gathering progress: {:.1}/{:.1}s ({:.0}%)",
+                            resource_node.kind.display_name(),
+                            elapsed,
+                            duration,
+                            (elapsed / duration) * 100.0
+                        );
+                    }
+                }
+                
                 if gather_task.timer.just_finished() {
                     // Calculate how much we can gather (limited by resource remaining)
                     let gather_amount = resource_node.gather_rate.min(resource_node.remaining as f32) as u16;
+                    
+                    info!(
+                        "🎯 {} timer finished! gather_rate={:.1}, remaining={}, gather_amount={}",
+                        resource_node.kind.display_name(),
+                        resource_node.gather_rate,
+                        resource_node.remaining,
+                        gather_amount
+                    );
                     
                     if gather_amount > 0 {
                         // Convert resource type to item
@@ -143,6 +168,11 @@ pub fn process_gathering_state_machine(
                             // Reduce resource node remaining
                             resource_node.remaining = resource_node.remaining.saturating_sub(added as u32);
                             
+                            // Emit inventory changed event
+                            inventory_events.write(InventoryChanged {
+                                unit: unit_entity,
+                            });
+                            
                             info!(
                                 "⛏️ Gathered {} {} (remaining: {}, inventory: {}/28 slots)", 
                                 added,
@@ -150,7 +180,11 @@ pub fn process_gathering_state_machine(
                                 resource_node.remaining,
                                 inventory.used_slots()
                             );
+                        } else {
+                            warn!("⚠️ Failed to add {} {} to inventory (inventory full?)", gather_amount, item_id.display_name());
                         }
+                    } else {
+                        warn!("⚠️ Gather amount is 0 for {}", resource_node.kind.display_name());
                     }
                 }
             }

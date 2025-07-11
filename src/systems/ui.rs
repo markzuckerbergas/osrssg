@@ -1,202 +1,189 @@
 use crate::components::*;
 use bevy::prelude::*;
-use rand::Rng;
 
-/// Component to mark the spawn button
-#[derive(Component)]
-pub struct SpawnButton;
-
-/// Component to mark the UI container
-#[derive(Component)]
-pub struct GameUI;
-
-/// Sets up the game UI with spawn button
+/// Sets up the game UI without spawn button
 pub fn setup_game_ui(mut commands: Commands) {
     info!("🎨 Setting up game UI");
 
-    // Create UI container centered above the minimap
-    commands
+    // Setup inventory UI (hidden by default)
+    setup_inventory_ui(&mut commands);
+}
+
+/// Sets up the OSRS-style inventory UI with 4x7 grid (28 slots)
+fn setup_inventory_ui(commands: &mut Commands) {
+    info!("📦 Setting up inventory UI");
+
+    // Create inventory root container (bottom-right, hidden by default)
+    let inventory_root = commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                right: Val::Px(35.0), // Center button over minimap: 10px + (200px-150px)/2 = 35px
-                bottom: Val::Px(220.0), // Position much higher above the minimap
-                width: Val::Auto,
-                height: Val::Auto,
+                right: Val::Px(10.0), // Bottom-right corner
+                bottom: Val::Px(10.0),
+                width: Val::Px(4.0 * 34.0 + 16.0), // 4 slots * 34px (32px + 2px spacing) + 16px padding
+                height: Val::Px(7.0 * 34.0 + 16.0), // 7 rows * 34px + 16px padding
+                padding: UiRect::all(Val::Px(8.0)),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(10.0),
+                row_gap: Val::Px(2.0),
+                display: Display::None, // Hidden by default
                 ..default()
             },
-            BackgroundColor(Color::NONE), // Transparent background
-            GlobalZIndex(1000),           // Much higher than minimap's GlobalZIndex(102)
-            GameUI,
-            Name::new("GameUI"),
+            BackgroundColor(Color::srgb(0.15, 0.12, 0.08)), // Dark brown OSRS-style background
+            BorderColor(Color::srgb(0.6, 0.5, 0.3)), // Gold-ish border
+            GlobalZIndex(500), // Above most UI but below minimap
+            InventoryRoot,
+            InventoryBorder,
+            Name::new("InventoryRoot"),
         ))
-        .with_children(|parent| {
-            // Spawn Character Button
-            parent
+        .id();
+
+    // Create 28 inventory slots in a 4x7 grid
+    for row in 0..7 {
+        let row_entity = commands
+            .spawn((
+                Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Px(32.0),
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(2.0),
+                    ..default()
+                },
+                BackgroundColor(Color::NONE),
+            ))
+            .id();
+
+        commands.entity(inventory_root).add_child(row_entity);
+
+        for col in 0..4 {
+            let slot_index = row * 4 + col;
+            
+            let slot_entity = commands
                 .spawn((
-                    Button,
                     Node {
-                        width: Val::Px(150.0),
-                        height: Val::Px(40.0),
-                        border: UiRect::all(Val::Px(2.0)),
+                        width: Val::Px(32.0),
+                        height: Val::Px(32.0),
+                        border: UiRect::all(Val::Px(1.0)),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         ..default()
                     },
-                    BorderColor(Color::srgb(0.8, 0.8, 0.8)),
-                    BackgroundColor(Color::srgb(0.2, 0.2, 0.2)),
-                    GlobalZIndex(1001), // Even higher than container
-                    SpawnButton,
-                    Name::new("SpawnButton"),
+                    BackgroundColor(Color::srgb(0.2, 0.18, 0.15)), // Slightly lighter than background
+                    BorderColor(Color::srgb(0.4, 0.35, 0.25)), // Darker border for slots
+                    InventorySlot { slot_index },
+                    Name::new(format!("InventorySlot_{}", slot_index)),
                 ))
-                .with_children(|parent| {
-                    parent.spawn((
-                        Text::new("Spawn Character"),
-                        TextLayout::new_with_justify(JustifyText::Center),
-                        TextFont {
-                            font_size: 16.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                    ));
-                });
-        });
+                .id();
+
+            commands.entity(row_entity).add_child(slot_entity);
+        }
+    }
 }
 
-/// Handles spawn button interactions
-pub fn handle_spawn_button(
-    mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor, &mut BorderColor),
-        (Changed<Interaction>, With<SpawnButton>),
-    >,
+/// Updates the inventory UI based on selection and inventory changes
+pub fn update_inventory_ui(
+    mut selection_events: EventReader<SelectionChanged>,
+    mut inventory_events: EventReader<InventoryChanged>,
+    selected_units_query: Query<Entity, (With<Selected>, With<Controllable>)>,
+    mut inventory_root_query: Query<&mut Node, (With<InventoryRoot>, Without<InventorySlot>)>,
+    mut inventory_slots_query: Query<(Entity, &InventorySlot, &mut BackgroundColor), With<InventorySlot>>,
+    units_query: Query<&Inventory, With<Controllable>>,
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    existing_units: Query<&Transform, With<Controllable>>,
-    static_obstacles: Query<&Transform, With<StaticObstacle>>,
 ) {
-    for (interaction, mut background_color, mut border_color) in &mut interaction_query {
-        match *interaction {
-            Interaction::Pressed => {
-                info!("🆕 Spawn button pressed!");
+    let mut should_update = false;
+    let mut current_selected_units: Vec<Entity> = Vec::new();
 
-                // Button pressed visual feedback
-                *background_color = Color::srgb(0.1, 0.1, 0.1).into();
-                *border_color = Color::WHITE.into();
-
-                // Spawn new character
-                spawn_random_character(
-                    &mut commands,
-                    &asset_server,
-                    &existing_units,
-                    &static_obstacles,
-                );
-            }
-            Interaction::Hovered => {
-                // Button hover visual feedback
-                *background_color = Color::srgb(0.3, 0.3, 0.3).into();
-                *border_color = Color::srgb(0.9, 0.9, 0.9).into();
-            }
-            Interaction::None => {
-                // Button normal visual feedback
-                *background_color = Color::srgb(0.2, 0.2, 0.2).into();
-                *border_color = Color::srgb(0.8, 0.8, 0.8).into();
-            }
-        }
-    }
-}
-
-/// Spawns a new character at a random valid location
-fn spawn_random_character(
-    commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
-    existing_units: &Query<&Transform, With<Controllable>>,
-    static_obstacles: &Query<&Transform, With<StaticObstacle>>,
-) {
-    let mut rng = rand::thread_rng();
-    let min_distance = 1.0; // Minimum distance between characters
-    let box_clearance = 1.0; // Minimum distance from boxes
-    let max_attempts = 50;
-
-    // Collect existing positions
-    let mut existing_positions = Vec::new();
-    for transform in existing_units.iter() {
-        existing_positions.push(transform.translation);
+    // Check for selection changes
+    for event in selection_events.read() {
+        should_update = true;
+        current_selected_units = event.selected_units.clone();
     }
 
-    // Collect box positions
-    let mut box_positions = Vec::new();
-    for transform in static_obstacles.iter() {
-        box_positions.push(transform.translation);
+    // Check for inventory changes - use current selection state from query
+    for _event in inventory_events.read() {
+        should_update = true;
+        // Get current selection from the Selected component query
+        current_selected_units = selected_units_query.iter().collect();
     }
 
-    let mut attempts = 0;
-    let mut spawn_position = None;
+    // If no events but we need to ensure consistency, check if we have a selection
+    let current_selection: Vec<Entity> = selected_units_query.iter().collect();
+    if !should_update && !current_selection.is_empty() {
+        current_selected_units = current_selection;
+        should_update = true; // Force update to ensure UI is visible
+    }
 
-    // Try to find a valid spawn position
-    while attempts < max_attempts {
-        let x = rng.gen_range(-8..8) as f32; // Integer grid coordinates
-        let z = rng.gen_range(-8..8) as f32;
-        let potential_pos = Vec3::new(x, 0.05, z); // Grid-aligned position
+    if !should_update {
+        return;
+    }
 
-        let mut position_valid = true;
+    // Update inventory UI visibility and contents
+    let Ok(mut inventory_root_node) = inventory_root_query.single_mut() else {
+        warn!("⚠️ Inventory root node not found");
+        return;
+    };
 
-        // Check distance to all existing characters
-        for existing_pos in &existing_positions {
-            if potential_pos.distance(*existing_pos) < min_distance {
-                position_valid = false;
-                break;
-            }
-        }
-
-        // Check distance to all boxes
-        if position_valid {
-            for box_pos in &box_positions {
-                if potential_pos.distance(*box_pos) < box_clearance {
-                    position_valid = false;
-                    break;
+    // Show inventory if exactly one unit is selected and it has an inventory
+    if current_selected_units.len() == 1 {
+        let selected_unit = current_selected_units[0];
+        
+        if let Ok(inventory) = units_query.get(selected_unit) {
+            // Show the inventory UI
+            inventory_root_node.display = Display::Flex;
+            
+            // Update all inventory slots
+            for (slot_entity, inventory_slot, mut slot_bg_color) in inventory_slots_query.iter_mut() {
+                let slot_index = inventory_slot.slot_index;
+                
+                if let Some(item_stack) = inventory.slots[slot_index] {
+                    // Slot has an item - change background color and add text
+                    *slot_bg_color = BackgroundColor(Color::srgba(
+                        item_stack.id.ui_color()[0],
+                        item_stack.id.ui_color()[1], 
+                        item_stack.id.ui_color()[2],
+                        0.3 // Semi-transparent item color
+                    ));
+                    
+                    // Add or update quantity text
+                    // Note: In a more complete implementation, we'd track and update existing text entities
+                    // For now, we'll just add text if quantity > 1
+                    commands.entity(slot_entity).with_children(|parent| {
+                        if item_stack.qty > 1 {
+                            parent.spawn((
+                                Text::new(item_stack.qty.to_string()),
+                                TextFont {
+                                    font_size: 10.0,
+                                    ..default()
+                                },
+                                TextColor(Color::WHITE),
+                                Node {
+                                    position_type: PositionType::Absolute,
+                                    bottom: Val::Px(2.0),
+                                    right: Val::Px(2.0),
+                                    ..default()
+                                },
+                            ));
+                        }
+                    });
+                } else {
+                    // Empty slot - reset to default appearance
+                    *slot_bg_color = BackgroundColor(Color::srgb(0.2, 0.18, 0.15));
+                    // Note: In a more complete implementation, we'd remove any existing text entities
                 }
             }
+            
+            // Only log inventory updates when inventory actually changes, not every frame
+            // info!("📦 Inventory UI updated for unit with {}/28 slots used", inventory.used_slots());
+        } else {
+            // Selected unit doesn't have inventory - hide UI
+            inventory_root_node.display = Display::None;
         }
-
-        if position_valid {
-            spawn_position = Some(potential_pos);
-            break;
-        }
-
-        attempts += 1;
-    }
-
-    if let Some(pos) = spawn_position {
-        let player_scene = asset_server.load("player.glb#Scene0");
-
-        let character_transform = Transform {
-            translation: pos,
-            scale: Vec3::splat(0.03),
-            ..default()
-        };
-
-        commands.spawn((
-            SceneRoot(player_scene),
-            character_transform,
-            GlobalTransform::default(),
-            Visibility::default(),
-            // Game components
-            Controllable,
-            CollisionRadius { radius: 0.3 },
-            StuckTimer::default(),
-            Name::new(format!("Player_{}", rng.gen::<u32>())),
-        ));
-
-        info!(
-            "👤 Spawned new character at position ({:.0}, {:.0})",
-            pos.x, pos.z
-        );
     } else {
-        info!(
-            "❌ Could not find valid spawn position after {} attempts",
-            max_attempts
-        );
+        // No units selected or multiple units selected - hide inventory UI
+        inventory_root_node.display = Display::None;
+        if current_selected_units.is_empty() {
+            info!("📦 Inventory UI hidden (no selection)");
+        } else {
+            info!("📦 Inventory UI hidden (selection: {} units)", current_selected_units.len());
+        }
     }
 }

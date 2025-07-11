@@ -11,8 +11,8 @@ pub fn setup_minimap(mut commands: Commands, minimap_settings: Res<MinimapSettin
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                right: Val::Percent((1.0 - minimap_settings.position.x) * 100.0),
-                bottom: Val::Percent((1.0 - minimap_settings.position.y) * 100.0),
+                right: Val::Px(10.0), // Fixed positioning from right edge
+                top: Val::Px(10.0),   // Fixed positioning from top edge
                 width: Val::Px(minimap_settings.size.x),
                 height: Val::Px(minimap_settings.size.y),
                 border: UiRect::all(Val::Px(2.0)),

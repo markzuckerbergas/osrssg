@@ -6,6 +6,8 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_event::<GatherEvent>()
+        .add_event::<SelectionChanged>()
+        .add_event::<InventoryChanged>()
         .init_resource::<GameState>()
         .init_resource::<CameraSettings>()
         .init_resource::<MinimapSettings>()
@@ -38,8 +40,8 @@ fn main() {
                 ),
                 // Gathering state machine
                 process_gathering_state_machine,
-                // UI interactions
-                handle_spawn_button,
+                // UI updates
+                update_inventory_ui, // Update inventory UI based on selection/inventory changes
                 // Movement
                 move_units,
                 // Animation

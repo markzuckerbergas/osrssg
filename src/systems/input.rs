@@ -117,7 +117,7 @@ pub fn handle_movement_command(
     cameras: Query<(&Camera, &GlobalTransform)>,
     selected_units: Query<Entity, (With<Selected>, With<Controllable>)>,
     static_obstacles: Query<&Transform, With<StaticObstacle>>,
-    resource_nodes: Query<(Entity, &Transform), With<ResourceNode>>,
+    resource_nodes: Query<(Entity, &Transform, &ResourceNode), With<ResourceNode>>,
     mut gather_events: EventWriter<GatherEvent>,
     mut commands: Commands,
 ) {
@@ -145,9 +145,14 @@ pub fn handle_movement_command(
 
     // First check if the ray hits any resource nodes
     let mut clicked_resource: Option<Entity> = None;
-    for (resource_entity, resource_transform) in resource_nodes.iter() {
-        let resource_size = Vec3::new(0.8, 1.0, 0.8); // Size of resource nodes
+    for (resource_entity, resource_transform, resource_node) in resource_nodes.iter() {
+        // Use larger collision boxes to make resource nodes easier to click
+        let resource_size = Vec3::new(1.2, 1.8, 1.2); // Generous size for all resource types
         if ray_box_intersection(ray, resource_transform.translation, resource_size) {
+            info!("🎯 Clicked on {} at ({:.1}, {:.1})", 
+                resource_node.kind.display_name(), 
+                resource_transform.translation.x, 
+                resource_transform.translation.z);
             clicked_resource = Some(resource_entity);
             break; // Take the first hit
         }
@@ -157,7 +162,7 @@ pub fn handle_movement_command(
     if let Some(resource_entity) = clicked_resource {
         let controllable_units: Vec<Entity> = selected_units.iter().collect();
         if !controllable_units.is_empty() {
-            info!("⛏️ Gather command: {} units targeting resource", controllable_units.len());
+            info!("⛏️ Gather command: {} units targeting resource entity {:?}", controllable_units.len(), resource_entity);
             
             // Emit gather events for all selected controllable units
             for unit_entity in controllable_units {
@@ -377,6 +382,7 @@ pub fn handle_drag_selection_complete(
     box_query: Query<Entity, With<DragSelectionBox>>,
     units: Query<(Entity, &GlobalTransform), (With<Controllable>, With<SceneRoot>)>,
     selected: Query<Entity, With<Selected>>,
+    mut selection_events: EventWriter<SelectionChanged>,
 ) {
     if !buttons.just_released(MouseButton::Left) || drag_query.is_empty() {
         return;
@@ -404,6 +410,7 @@ pub fn handle_drag_selection_complete(
     let max_y = drag.start_pos.y.max(drag.current_pos.y);
 
     let mut selected_count = 0;
+    let mut newly_selected_units: Vec<Entity> = Vec::new();
 
     // Check if drag was just a click (small area)
     let drag_area = (max_x - min_x) * (max_y - min_y);
@@ -423,6 +430,7 @@ pub fn handle_drag_selection_complete(
 
             if ray_intersects_cylinder(ray, unit_pos, selection_radius, selection_height) {
                 commands.entity(entity).insert(Selected);
+                newly_selected_units.push(entity);
                 selected_count += 1;
                 break; // Only select one unit for click
             }
@@ -485,6 +493,7 @@ pub fn handle_drag_selection_complete(
 
         for (entity, _screen_pos, unit_world_pos) in units_to_select {
             commands.entity(entity).insert(Selected);
+            newly_selected_units.push(entity);
             selected_count += 1;
             info!(
                 "✅ Selected unit at world pos ({:.1}, {:.1})",
@@ -497,6 +506,11 @@ pub fn handle_drag_selection_complete(
         "✅ Drag selection complete: {} units selected",
         selected_count
     );
+
+    // Emit SelectionChanged event
+    selection_events.write(SelectionChanged {
+        selected_units: newly_selected_units,
+    });
 
     // Cleanup drag selection
     cleanup_drag_selection(&mut commands, drag_entity, &box_query);
