@@ -177,24 +177,27 @@ pub fn spawn_resources(
             }
 
             // Create the resource node
-            let (mesh, material, position_offset, remaining) = match chosen_resource {
+            let (mesh, material, position_offset, remaining, collision_size) = match chosen_resource {
                 ResourceKind::Wood => (
                     meshes.add(Cuboid::new(0.4, 1.5, 0.4)), // Taller, thicker tree
                     tree_material.clone(),
                     Vec3::new(0.0, 0.75, 0.0), // Raise tree so base is at ground level
                     50, // 50 logs per tree
+                    Vec3::new(1.2, 1.5, 1.2), // Larger collision area for trees to make them easier to avoid
                 ),
                 ResourceKind::Copper => (
                     meshes.add(Cuboid::new(0.9, 0.7, 0.7)), // Rocky shape for ore
                     copper_material.clone(),
                     Vec3::new(0.0, 0.35, 0.0), // Center on ground
                     30, // 30 copper ore per node
+                    Vec3::new(1.1, 0.7, 1.1), // Slightly larger collision than visual
                 ),
                 ResourceKind::Tin => (
                     meshes.add(Cuboid::new(0.8, 0.6, 0.8)), // Slightly different shape
                     tin_material.clone(),
                     Vec3::new(0.0, 0.3, 0.0), // Center on ground
                     25, // 25 tin ore per node
+                    Vec3::new(1.0, 0.6, 1.0), // Slightly larger collision than visual
                 ),
             };
 
@@ -222,6 +225,8 @@ pub fn spawn_resources(
                 MeshMaterial3d(material),
                 transform,
                 ResourceNode::new(chosen_resource, remaining, gather_rate, gather_radius),
+                StaticObstacle, // Make resource nodes collidable obstacles
+                CollisionSize::new(collision_size), // Add collision size for proper collision detection
                 Name::new(format!("{} Node", chosen_resource.display_name())),
             ));
         } else {

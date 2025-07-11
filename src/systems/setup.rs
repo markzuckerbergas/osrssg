@@ -232,7 +232,7 @@ pub fn setup_scene(
             MeshMaterial3d(box_material.clone()),
             Transform::from_translation(*position),
             StaticObstacle, // Mark as static obstacle for collision detection
-            CollisionRadius { radius: 0.6 }, // Slightly larger collision radius than visual size
+            CollisionSize::new(Vec3::new(0.8, 0.5, 0.8)), // Box collision size
         ));
     }
 

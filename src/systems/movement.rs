@@ -19,7 +19,7 @@ pub fn move_units(
         (With<Controllable>, Without<Moving>),
     >,
     static_obstacles: Query<
-        &Transform,
+        (&Transform, Option<&CollisionSize>),
         (With<StaticObstacle>, Without<Controllable>, Without<Moving>),
     >,
     mut commands: Commands,
@@ -181,20 +181,22 @@ pub fn move_units(
             let mut final_position = desired_position;
             let unit_radius = collision.map(|c| c.radius).unwrap_or(0.3); // Use component radius or default
 
-            for obstacle_transform in static_obstacles.iter() {
-                let box_center = obstacle_transform.translation;
-                let box_size = Vec3::new(0.8, 0.5, 0.8); // Size of our boxes
-                let box_radius = (box_size.x + box_size.z) * 0.25; // Approximate radius for collision
+            for (obstacle_transform, collision_size) in static_obstacles.iter() {
+                let obstacle_center = obstacle_transform.translation;
+                let obstacle_size = collision_size
+                    .map(|cs| cs.size)
+                    .unwrap_or(Vec3::new(0.8, 0.5, 0.8)); // Default box size for legacy obstacles
+                let obstacle_radius = (obstacle_size.x + obstacle_size.z) * 0.25; // Approximate radius for collision
 
-                let distance_to_box = desired_position.distance(box_center);
+                let distance_to_obstacle = desired_position.distance(obstacle_center);
 
-                if distance_to_box < (unit_radius + box_radius) {
-                    // Collision detected - push unit away from box
-                    let push_direction = (desired_position - box_center).normalize_or_zero();
-                    let safe_distance = unit_radius + box_radius + 0.1; // Add small buffer
-                    final_position = box_center + push_direction * safe_distance;
+                if distance_to_obstacle < (unit_radius + obstacle_radius) {
+                    // Collision detected - push unit away from obstacle
+                    let push_direction = (desired_position - obstacle_center).normalize_or_zero();
+                    let safe_distance = unit_radius + obstacle_radius + 0.1; // Add small buffer
+                    final_position = obstacle_center + push_direction * safe_distance;
 
-                    // If pushed position is further from target, try to slide around the box
+                    // If pushed position is further from target, try to slide around the obstacle
                     if final_position.distance(Vec3::new(
                         final_destination.x,
                         current_pos.y,
@@ -204,9 +206,9 @@ pub fn move_units(
                         current_pos.y,
                         final_destination.z,
                     )) {
-                        // Try sliding perpendicular to the box
-                        let to_box = (box_center - current_pos).normalize_or_zero();
-                        let perpendicular = Vec3::new(-to_box.z, 0.0, to_box.x);
+                        // Try sliding perpendicular to the obstacle
+                        let to_obstacle = (obstacle_center - current_pos).normalize_or_zero();
+                        let perpendicular = Vec3::new(-to_obstacle.z, 0.0, to_obstacle.x);
 
                         let slide_option1 = current_pos + perpendicular * move_distance;
                         let slide_option2 = current_pos - perpendicular * move_distance;
@@ -221,7 +223,7 @@ pub fn move_units(
                         }
 
                         // Check if sliding position also collides
-                        if final_position.distance(box_center) < (unit_radius + box_radius) {
+                        if final_position.distance(obstacle_center) < (unit_radius + obstacle_radius) {
                             // Can't slide, just stop
                             final_position = current_pos;
                         }
@@ -367,6 +369,57 @@ fn generate_formation_alternatives(target: Vec3, current_pos: Vec3) -> Vec<Vec3>
     });
 
     alternatives
+}
+
+/// Debug system to log collision detection for troubleshooting
+/// Only activates when units are near obstacles
+#[allow(dead_code)]
+pub fn debug_obstacle_collisions(
+    moving_units: Query<
+        (&Transform, Entity, &Destination),
+        With<Moving>,
+    >,
+    static_obstacles: Query<
+        (&Transform, Option<&CollisionSize>, Option<&ResourceNode>),
+        (With<StaticObstacle>, Without<Controllable>, Without<Moving>),
+    >,
+) {
+    for (unit_transform, unit_entity, destination) in moving_units.iter() {
+        let unit_pos = unit_transform.translation;
+        let unit_radius = 0.3; // Default unit radius
+        
+        for (obstacle_transform, collision_size, resource_node) in static_obstacles.iter() {
+            let obstacle_center = obstacle_transform.translation;
+            let obstacle_size = collision_size
+                .map(|cs| cs.size)
+                .unwrap_or(Vec3::new(0.8, 0.5, 0.8));
+            let obstacle_radius = (obstacle_size.x + obstacle_size.z) * 0.25;
+            let distance_to_obstacle = unit_pos.distance(obstacle_center);
+            let collision_threshold = unit_radius + obstacle_radius;
+            
+            // Only log when units are close to obstacles
+            if distance_to_obstacle < collision_threshold + 1.0 {
+                let obstacle_type = if let Some(resource) = resource_node {
+                    resource.kind.display_name()
+                } else {
+                    "Box"
+                };
+                
+                info!(
+                    "🔍 Unit {:?} near {} at ({:.1}, {:.1}): distance={:.2}, threshold={:.2}, size={:.1}×{:.1}, collision={}",
+                    unit_entity,
+                    obstacle_type,
+                    obstacle_center.x,
+                    obstacle_center.z,
+                    distance_to_obstacle,
+                    collision_threshold,
+                    obstacle_size.x,
+                    obstacle_size.z,
+                    distance_to_obstacle < collision_threshold
+                );
+            }
+        }
+    }
 }
 
 // Debug system to visualize collision circles (optional)

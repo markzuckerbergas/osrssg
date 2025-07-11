@@ -414,3 +414,27 @@ pub struct PrimaryTarget;
 pub struct UnitAnimationPlayer {
     pub unit_entity: Entity,
 }
+
+/// Component for collision size of static obstacles
+#[derive(Component)]
+pub struct CollisionSize {
+    pub size: Vec3,
+}
+
+impl CollisionSize {
+    pub fn new(size: Vec3) -> Self {
+        Self { size }
+    }
+    
+    pub fn radius(&self) -> f32 {
+        (self.size.x + self.size.z) * 0.25 // Approximate radius for circular collision
+    }
+}
+
+impl Default for CollisionSize {
+    fn default() -> Self {
+        Self {
+            size: Vec3::new(0.8, 0.5, 0.8), // Default box size
+        }
+    }
+}
