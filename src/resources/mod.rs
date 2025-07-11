@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::components::{Controllable, Inventory};
 
 /// Global game state
 #[derive(Resource, Default)]
@@ -69,4 +70,67 @@ pub struct UnitAnimations {
 pub struct MinimapDragState {
     pub is_dragging: bool,
     pub last_mouse_pos: Option<Vec2>,
+}
+
+/// Global configuration for the resource gathering system
+#[derive(Resource)]
+pub struct GatheringConfig {
+    /// Default gathering rate (items per second)
+    pub default_gather_rate: f32,
+    /// Default radius for gathering
+    pub default_gather_radius: f32,
+    /// Maximum stack size for items
+    pub max_stack_size: u16,
+    /// Speed multiplier when walking to gather
+    pub gather_walk_speed: f32,
+}
+
+impl Default for GatheringConfig {
+    fn default() -> Self {
+        Self {
+            default_gather_rate: 1.0,      // 1 resource per second base
+            default_gather_radius: 1.5,    // Close proximity like OSRS
+            max_stack_size: 28000,          // High stack limit like OSRS
+            gather_walk_speed: 1.0,         // Normal walk speed
+        }
+    }
+}
+
+/// Resource to track currently selected units
+#[derive(Resource, Default)]
+pub struct SelectedUnits {
+    pub entities: Vec<Entity>,
+}
+
+impl SelectedUnits {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn clear(&mut self) {
+        self.entities.clear();
+    }
+
+    pub fn add(&mut self, entity: Entity) {
+        if !self.entities.contains(&entity) {
+            self.entities.push(entity);
+        }
+    }
+
+    pub fn remove(&mut self, entity: Entity) {
+        self.entities.retain(|&e| e != entity);
+    }
+
+    pub fn is_selected(&self, entity: Entity) -> bool {
+        self.entities.contains(&entity)
+    }
+
+    pub fn count(&self) -> usize {
+        self.entities.len()
+    }
+
+    /// Helper function to check if an entity is a worker (has Controllable and Inventory components)
+    pub fn is_worker(&self, entity: Entity, query: &Query<(&Controllable, &Inventory)>) -> bool {
+        query.get(entity).is_ok()
+    }
 }
