@@ -21,6 +21,13 @@ use bevy::prelude::*;
 // - GatherTask: State machine for gathering behavior
 // - Capacity: Inventory limits and stack sizes
 
+/// Event emitted when a unit should gather from a resource node
+#[derive(Event)]
+pub struct GatherEvent {
+    pub unit: Entity,
+    pub resource: Entity,
+}
+
 /// Marks an entity as selected by the player
 #[derive(Component)]
 pub struct Selected;

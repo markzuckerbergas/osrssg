@@ -5,6 +5,7 @@ use osrssg::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_event::<GatherEvent>()
         .init_resource::<GameState>()
         .init_resource::<CameraSettings>()
         .init_resource::<MinimapSettings>()
@@ -13,7 +14,13 @@ fn main() {
         .init_resource::<SelectedUnits>()
         .add_systems(
             Startup,
-            (setup_scene, setup_animations, setup_minimap, setup_game_ui),
+            (
+                setup_scene,      // Scene, camera, lighting, units, obstacles
+                setup_animations, // Animation system
+                setup_minimap,    // Minimap UI
+                setup_game_ui,    // Main game UI
+                spawn_resources,  // Resource nodes (must run after setup_scene for collision avoidance)
+            ),
         )
         .add_systems(
             Update,
@@ -27,6 +34,7 @@ fn main() {
                     handle_drag_selection_update,
                     handle_drag_selection_complete,
                     handle_movement_command,
+                    issue_gather_task, // Process gather events right after movement commands
                 ),
                 // UI interactions
                 handle_spawn_button,

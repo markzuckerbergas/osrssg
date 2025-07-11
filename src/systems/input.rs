@@ -110,13 +110,15 @@ fn find_closest_adjacent_tile(box_center: Vec3, from_position: Vec3) -> Vec3 {
     closest_tile
 }
 
-/// Handles right-click movement commands
+/// Handles right-click movement commands and gathering commands
 pub fn handle_movement_command(
     buttons: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
     cameras: Query<(&Camera, &GlobalTransform)>,
-    selected_units: Query<Entity, With<Selected>>,
+    selected_units: Query<Entity, (With<Selected>, With<Controllable>)>,
     static_obstacles: Query<&Transform, With<StaticObstacle>>,
+    resource_nodes: Query<(Entity, &Transform), With<ResourceNode>>,
+    mut gather_events: EventWriter<GatherEvent>,
     mut commands: Commands,
 ) {
     if !buttons.just_pressed(MouseButton::Right) {
@@ -141,7 +143,34 @@ pub fn handle_movement_command(
         return;
     };
 
-    // First check if the ray hits any obstacles (boxes)
+    // First check if the ray hits any resource nodes
+    let mut clicked_resource: Option<Entity> = None;
+    for (resource_entity, resource_transform) in resource_nodes.iter() {
+        let resource_size = Vec3::new(0.8, 1.0, 0.8); // Size of resource nodes
+        if ray_box_intersection(ray, resource_transform.translation, resource_size) {
+            clicked_resource = Some(resource_entity);
+            break; // Take the first hit
+        }
+    }
+
+    // If we clicked on a resource node and have controllable units selected, emit gather events
+    if let Some(resource_entity) = clicked_resource {
+        let controllable_units: Vec<Entity> = selected_units.iter().collect();
+        if !controllable_units.is_empty() {
+            info!("⛏️ Gather command: {} units targeting resource", controllable_units.len());
+            
+            // Emit gather events for all selected controllable units
+            for unit_entity in controllable_units {
+                gather_events.write(GatherEvent {
+                    unit: unit_entity,
+                    resource: resource_entity,
+                });
+            }
+        }
+        return; // Don't continue with movement logic if we're gathering
+    }
+
+    // Then check if the ray hits any obstacles (boxes)
     let mut clicked_box: Option<Vec3> = None;
     for obstacle_transform in static_obstacles.iter() {
         let box_size = Vec3::new(0.8, 0.5, 0.8); // Size of our boxes

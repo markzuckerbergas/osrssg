@@ -1,17 +1,21 @@
 pub mod animation;
 pub mod camera;
 pub mod debug;
+pub mod gathering;
 pub mod input;
 pub mod minimap;
 pub mod movement;
 pub mod setup;
+pub mod spawn_resources;
 pub mod ui;
 
 pub use animation::*;
 pub use camera::*;
 pub use debug::*;
+pub use gathering::*;
 pub use input::*;
 pub use minimap::*;
 pub use movement::*;
 pub use setup::*;
+pub use spawn_resources::*;
 pub use ui::*;

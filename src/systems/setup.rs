@@ -164,6 +164,8 @@ pub fn setup_scene(
                 radius: 0.5,
                 allow_friendly_overlap: true,
             },
+            Inventory::new(),    // Add inventory component for resource gathering
+            Capacity::default(), // Add capacity component (28 slots, high stack limit)
         ));
     }
 
