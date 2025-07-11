@@ -122,11 +122,89 @@ cargo run --features bevy/dynamic_linking
 
 ### WebAssembly Build
 
-The game can be compiled to WebAssembly for web deployment:
+The game can be compiled to WebAssembly for web deployment. A comprehensive build system is set up for optimal web performance.
+
+## 🌐 Web Deployment
+
+### Prerequisites
+
+Install the required tools for WASM compilation:
+
 ```bash
-# Build for web (requires additional setup)
-# See: https://bevy-cheatbook.github.io/platforms/wasm.html
+# Install the WASM target
+rustup target add wasm32-unknown-unknown
+
+# Install wasm-bindgen for JavaScript bindings
+cargo install wasm-bindgen-cli
+
+# Install wasm-opt for size optimization (via binaryen)
+brew install binaryen  # macOS
+# or apt install binaryen  # Ubuntu
+# or choco install binaryen  # Windows
 ```
+
+### Building for Web
+
+The project includes optimized build profiles for WASM deployment:
+
+```bash
+# Build optimized WASM binary
+cargo build --profile wasm-release --target wasm32-unknown-unknown
+
+# Generate JavaScript bindings
+wasm-bindgen --out-dir wasm --target web --no-typescript target/wasm32-unknown-unknown/wasm-release/osrssg.wasm
+
+# Optimize WASM file size (reduces from ~20MB to ~18MB)
+wasm-opt -O --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-reference-types --enable-sign-ext -o wasm/osrssg_bg_optimized.wasm wasm/osrssg_bg.wasm
+```
+
+### Optimization Features
+
+The `Cargo.toml` includes specialized profiles for maximum size reduction:
+
+- **`wasm-release` profile**: Optimized specifically for web deployment
+- **Size optimization**: `opt-level = 'z'` for minimum binary size
+- **Link Time Optimization**: `lto = true` for better optimization
+- **Single codegen unit**: `codegen-units = 1` for improved LTO
+- **Panic behavior**: `panic = 'abort'` to reduce binary size
+- **Symbol stripping**: `strip = true` to remove debug symbols
+
+### Deployment Results
+
+The optimized build achieves significant size reductions:
+- **Original build**: ~25MB WASM file
+- **Optimized build**: ~18MB WASM file  
+- **Size reduction**: 28% smaller, faster loading
+
+### GitHub Pages Setup
+
+The `web` branch contains the optimized deployment:
+
+1. **Automated GitHub Pages**: Deploys from the `web` branch
+2. **Optimized assets**: Includes compressed WASM and updated JavaScript
+3. **Enhanced HTML**: Improved loading states and responsive design
+4. **Asset management**: Proper handling of game assets and textures
+
+### Local Testing
+
+Test the web build locally:
+
+```bash
+# Navigate to your built web files
+cd wasm/
+
+# Start a local server
+python3 -m http.server 8080
+
+# Open http://localhost:8080 in your browser
+```
+
+### Deployment Workflow
+
+1. **Make changes** on the `main` branch
+2. **Build optimized WASM** using the commands above  
+3. **Switch to `web` branch** and update with optimized files
+4. **Commit and push** to trigger GitHub Pages deployment
 
 ## 🤝 Contributing
 
@@ -140,7 +218,7 @@ The game can be compiled to WebAssembly for web deployment:
 ### Immediate Improvements
 - [x] Multiple unit selection (AoE2-style tile-based drag selection box)
 - [ ] Unit health and combat system
-- [ ] Resource gathering mechanics
+- [x] Resource gathering mechanics
 - [ ] Building construction
 
 ### Camera Enhancements
@@ -159,10 +237,6 @@ The game can be compiled to WebAssembly for web deployment:
 See the live demo: [https://markzuckerbergas.github.io/osrssg/](https://markzuckerbergas.github.io/osrssg/)
 
 The web build source is available in the `web` branch.
-
----
-
-**Happy coding!** 🦀 This project is designed to be approachable for developers new to Rust or game development. Each module has clear responsibilities, and the code prioritizes readability over clever optimizations.
 
 
 

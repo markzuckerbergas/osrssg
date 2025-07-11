@@ -13,3 +13,20 @@ opt-level = 1
 
 [profile.dev.package."*"]
 opt-level = 3
+
+# WASM-specific optimizations for size
+[profile.release]
+opt-level = 'z'     # Optimize for size
+lto = true          # Enable Link Time Optimization
+codegen-units = 1   # Reduce number of codegen units to improve LTO
+panic = 'abort'     # Abort on panic (smaller than unwinding)
+strip = true        # Automatically strip symbols from the binary.
+
+# The same settings, but for WASM specifically
+[profile.wasm-release]
+inherits = "release"
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true
