@@ -211,7 +211,7 @@ pub fn setup_scene(
 
     // Add some boxes as obstacles
     let box_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.6, 0.4, 0.2), // Brown wooden color
+        base_color: Color::srgb(0.1, 0.1, 0.1), // Black color
         metallic: 0.0,
         perceptual_roughness: 0.8,
         reflectance: 0.0,
