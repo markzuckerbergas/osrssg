@@ -1,5 +1,4 @@
 use bevy::{
-    animation::graph::AnimationGraph,
     gltf::GltfAssetLabel,
     prelude::*,
     render::camera::ScalingMode,
@@ -10,13 +9,15 @@ use crate::{components::*, resources::*};
 pub fn setup_scene(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut animation_graphs: ResMut<Assets<AnimationGraph>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Insert resources
     commands.insert_resource(GameState::default());
     commands.insert_resource(CameraSettings::default());
+
+    // Setup will be handled by the animation graph system
+    // Remove the old UnitAnimations resource setup from here
 
     // Lighting setup
     commands.insert_resource(AmbientLight {
@@ -36,19 +37,7 @@ pub fn setup_scene(
         Transform::from_xyz(-2.0, 6.0, 2.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    // Setup animations
-    let walk_animation = asset_server.load(GltfAssetLabel::Animation(0).from_asset("player.glb"));
-    let idle_animation = asset_server.load(GltfAssetLabel::Animation(1).from_asset("player.glb"));
-    
-    let (graph, animation_indices) = AnimationGraph::from_clips([walk_animation, idle_animation]);
-    animation_graphs.add(graph);
-    
-    let unit_animations = UnitAnimations {
-        walk: animation_indices[0],
-        idle: animation_indices[1],
-    };
-
-    // Spawn player unit
+    // Spawn player unit (no animation graph handle needed)
     let player_scene = asset_server.load(GltfAssetLabel::Scene(0).from_asset("player.glb"));
     commands.spawn((
         SceneRoot(player_scene),
@@ -58,7 +47,6 @@ pub fn setup_scene(
             ..default()
         },
         Controllable,
-        unit_animations,
     ));
 
     // Ground plane

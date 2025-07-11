@@ -11,23 +11,28 @@ use osrssg::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_systems(Startup, setup_scene)
+        .add_systems(Startup, (
+            setup_scene,
+            setup_animations,
+        ))
         .add_systems(
             Update,
             (
-                // Input handling
-                handle_unit_selection,
-                handle_movement_command,
+                // Input handling (first)
+                (handle_unit_selection, handle_movement_command),
                 
-                // Camera controls
-                camera_movement,
-                camera_zoom,
+                // Animation setup and animation logic
+                (setup_animation_players, animate_units),
                 
-                // Movement and animation
+                // Movement (runs after animations to override any position changes)
                 move_units,
-                update_movement_animations,
-                setup_initial_animations,
-            )
+                
+                // Camera controls (can run anytime)
+                (camera_movement, camera_zoom),
+                
+                // Debug systems
+                debug_animation_assets,
+            ).chain()  // Run systems in this exact order
         )
         .run();
 }

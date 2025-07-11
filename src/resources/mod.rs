@@ -25,3 +25,11 @@ impl Default for CameraSettings {
         }
     }
 }
+
+/// Animation system using AnimationGraph approach for Bevy 0.16
+#[derive(Resource)]
+pub struct UnitAnimations {
+    pub walk_node: AnimationNodeIndex,
+    pub idle_node: AnimationNodeIndex,
+    pub animation_graph: Handle<AnimationGraph>,
+}
