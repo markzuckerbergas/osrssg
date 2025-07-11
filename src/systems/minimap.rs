@@ -211,6 +211,7 @@ pub fn update_minimap(
                     BackgroundColor(Color::NONE), // Transparent background
                     BorderColor(Color::WHITE),    // White border for visibility
                     GlobalZIndex(102),            // Ensure viewport appears above dots
+                    Interaction::default(),       // Make viewport draggable
                     MinimapCameraViewport,
                 ));
             });
@@ -366,6 +367,128 @@ pub fn handle_minimap_click(
                     }
                 }
             }
+        }
+    }
+}
+
+/// Resource to track minimap drag state
+#[derive(Resource, Default)]
+pub struct MinimapDragState {
+    pub is_dragging: bool,
+    pub last_mouse_pos: Option<Vec2>,
+}
+
+/// Handle minimap viewport dragging to move camera
+pub fn handle_minimap_drag(
+    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+    camera_settings: Res<CameraSettings>,
+    minimap_settings: Res<MinimapSettings>,
+    mut drag_state: ResMut<MinimapDragState>,
+    buttons: Res<ButtonInput<MouseButton>>,
+    viewport_query: Query<&Interaction, (Changed<Interaction>, With<MinimapCameraViewport>)>,
+    windows: Query<&Window>,
+) {
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    let Some(cursor_position) = window.cursor_position() else {
+        return;
+    };
+
+    // Check if we're starting to drag the viewport
+    for interaction in viewport_query.iter() {
+        if *interaction == Interaction::Pressed && buttons.pressed(MouseButton::Left) {
+            drag_state.is_dragging = true;
+            drag_state.last_mouse_pos = Some(cursor_position);
+            info!("🗺️ Started dragging minimap viewport");
+            return;
+        }
+    }
+
+    // Handle ongoing drag
+    if drag_state.is_dragging {
+        if buttons.pressed(MouseButton::Left) {
+            if let Some(last_pos) = drag_state.last_mouse_pos {
+                let delta = cursor_position - last_pos;
+
+                // Convert mouse delta to world coordinate delta
+                let minimap_size = minimap_settings.size.x;
+                let container_padding = 4.0;
+                let border_width = 2.0;
+                let total_padding = container_padding + border_width;
+                let map_area_size = minimap_size - (total_padding * 2.0);
+
+                // Convert pixel delta to normalized minimap delta
+                let normalized_delta = Vec2::new(
+                    delta.x / map_area_size,
+                    delta.y / map_area_size,
+                );
+
+                // Apply isometric transformation to convert to world delta
+                let display_angle = -std::f32::consts::PI / 4.0 + std::f32::consts::PI / 2.0;
+                let cos_a = display_angle.cos();
+                let sin_a = display_angle.sin();
+
+                // Calculate world bounds in isometric space
+                let bounds_min_world = camera_settings.bounds_min.xz();
+                let bounds_max_world = camera_settings.bounds_max.xz();
+
+                let corners = [
+                    bounds_min_world,
+                    Vec2::new(bounds_max_world.x, bounds_min_world.y),
+                    bounds_max_world,
+                    Vec2::new(bounds_min_world.x, bounds_max_world.y),
+                ];
+
+                let mut iso_bounds_min = Vec2::new(f32::INFINITY, f32::INFINITY);
+                let mut iso_bounds_max = Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
+
+                for corner in corners {
+                    let iso_corner = Vec2::new(
+                        corner.x * cos_a - corner.y * sin_a,
+                        corner.x * sin_a + corner.y * cos_a,
+                    );
+                    iso_bounds_min = iso_bounds_min.min(iso_corner);
+                    iso_bounds_max = iso_bounds_max.max(iso_corner);
+                }
+
+                let iso_world_bounds = iso_bounds_max - iso_bounds_min;
+                let iso_delta = normalized_delta * iso_world_bounds;
+
+                // Apply inverse transformation to get world delta
+                let inv_cos_a = cos_a;
+                let inv_sin_a = -sin_a;
+
+                let world_delta = Vec2::new(
+                    iso_delta.x * inv_cos_a - iso_delta.y * inv_sin_a,
+                    iso_delta.x * inv_sin_a + iso_delta.y * inv_cos_a,
+                );
+
+                // Apply delta to camera position
+                if let Ok(mut camera_transform) = camera_query.single_mut() {
+                    let new_pos = Vec3::new(
+                        camera_transform.translation.x + world_delta.x,
+                        camera_transform.translation.y,
+                        camera_transform.translation.z + world_delta.y,
+                    );
+
+                    // Clamp to bounds
+                    let clamped_pos = Vec3::new(
+                        new_pos.x.clamp(camera_settings.bounds_min.x, camera_settings.bounds_max.x),
+                        new_pos.y,
+                        new_pos.z.clamp(camera_settings.bounds_min.z, camera_settings.bounds_max.z),
+                    );
+
+                    camera_transform.translation = clamped_pos;
+                }
+
+                drag_state.last_mouse_pos = Some(cursor_position);
+            }
+        } else {
+            // Stop dragging when mouse button is released
+            drag_state.is_dragging = false;
+            drag_state.last_mouse_pos = None;
+            info!("🗺️ Stopped dragging minimap viewport");
         }
     }
 }

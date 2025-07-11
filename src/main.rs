@@ -8,6 +8,7 @@ fn main() {
         .init_resource::<GameState>()
         .init_resource::<CameraSettings>()
         .init_resource::<MinimapSettings>()
+        .init_resource::<MinimapDragState>()
         .add_systems(Startup, (setup_scene, setup_animations, setup_minimap))
         .add_systems(
             Update,
@@ -26,7 +27,7 @@ fn main() {
                 // Camera controls
                 (camera_movement, edge_scrolling),
                 // Minimap
-                (update_minimap, toggle_minimap_visibility, handle_minimap_click),
+                (update_minimap, toggle_minimap_visibility, handle_minimap_click, handle_minimap_drag),
                 // Debug
                 debug_entity_spawning,
                 debug_animation_assets,
