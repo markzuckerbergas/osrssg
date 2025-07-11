@@ -49,7 +49,7 @@ impl Default for MinimapSettings {
     fn default() -> Self {
         Self {
             size: Vec2::new(200.0, 200.0),
-            position: Vec2::new(0.02, 0.02), // Top-left corner with small margin
+            position: Vec2::new(0.98, 0.98), // Bottom-right corner with small margin
             world_size: Vec2::new(40.0, 40.0), // 40x40 world units
             zoom: 0.1,
         }

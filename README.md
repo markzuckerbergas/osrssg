@@ -11,6 +11,7 @@ A real-time strategy game that merges the immersive world of Old School RuneScap
   - **Edge Scrolling**: Move camera by moving mouse to screen edges
   - **Camera Bounds**: Prevents camera from moving too far from action area
   - **Zoom Controls**: Mouse wheel zoom with min/max limits
+  - **Minimap**: Bottom-right overlay showing game area and player positions (Press M to toggle)
 - **Smooth Animations**: Walking and idle animations for units
 
 ## 🛠️ Technology Stack
@@ -43,6 +44,7 @@ cargo run
 - **Mouse Wheel**: Zoom in/out (with min/max limits)
 - **Left Click**: Select a unit (click anywhere on the character model)
 - **Right Click**: Move selected unit to clicked location
+- **M Key**: Toggle minimap visibility
 
 ## 📁 Project Structure
 
@@ -139,7 +141,7 @@ The game can be compiled to WebAssembly for web deployment:
 
 ### Camera Enhancements
 - [x] Edge scrolling (move camera when mouse near screen edge)
-- [ ] Minimap for navigation
+- [x] Minimap for navigation
 - [x] Camera bounds (prevent moving too far from action)
 
 ### Gameplay Features

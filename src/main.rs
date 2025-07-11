@@ -11,9 +11,13 @@ use osrssg::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .init_resource::<GameState>()
+        .init_resource::<CameraSettings>()
+        .init_resource::<MinimapSettings>()
         .add_systems(Startup, (
             setup_scene,
             setup_animations,
+            setup_minimap,
         ))
         .add_systems(
             Update,
@@ -29,6 +33,9 @@ fn main() {
                 
                 // Camera controls (enhanced with edge scrolling and bounds)
                 (camera_movement, camera_zoom, edge_scrolling),
+                
+                // Minimap updates
+                (update_minimap, toggle_minimap_visibility),
                 
                 // Debug systems
                 debug_animation_assets,

@@ -25,3 +25,11 @@ pub struct MainCamera;
 /// Marks the minimap camera
 #[derive(Component)]
 pub struct MinimapCamera;
+
+/// Marks the minimap UI container
+#[derive(Component)]
+pub struct MinimapUI;
+
+/// Marks a player dot on the minimap
+#[derive(Component)]
+pub struct MinimapPlayerDot;
