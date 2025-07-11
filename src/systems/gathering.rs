@@ -129,32 +129,9 @@ pub fn process_gathering_state_machine(
                 // Process gathering timer
                 gather_task.timer.tick(time.delta());
                 
-                // Debug: Show timer progress every few seconds for copper/tin
-                if matches!(resource_node.kind, ResourceKind::Copper | ResourceKind::Tin) {
-                    let elapsed = gather_task.timer.elapsed_secs();
-                    let duration = gather_task.timer.duration().as_secs_f32();
-                    if elapsed % 0.5 < time.delta().as_secs_f32() { // Every 0.5 seconds
-                        info!(
-                            "⏰ {} gathering progress: {:.1}/{:.1}s ({:.0}%)",
-                            resource_node.kind.display_name(),
-                            elapsed,
-                            duration,
-                            (elapsed / duration) * 100.0
-                        );
-                    }
-                }
-                
                 if gather_task.timer.just_finished() {
-                    // Calculate how much we can gather (limited by resource remaining)
-                    let gather_amount = resource_node.gather_rate.min(resource_node.remaining as f32) as u16;
-                    
-                    info!(
-                        "🎯 {} timer finished! gather_rate={:.1}, remaining={}, gather_amount={}",
-                        resource_node.kind.display_name(),
-                        resource_node.gather_rate,
-                        resource_node.remaining,
-                        gather_amount
-                    );
+                    // Always gather exactly 1 item when timer finishes (gather_rate controls timing, not amount)
+                    let gather_amount = 1_u16.min(resource_node.remaining as u16);
                     
                     if gather_amount > 0 {
                         // Convert resource type to item

@@ -150,11 +150,13 @@ impl ResourceKind {
     }
 
     /// Get the base gather rate (items per second)
+    /// Balanced for AoE-style gameplay: ~0.4-0.55 resources/sec
+    /// Full inventory (28 slots) takes ~50-70 seconds to fill
     pub fn base_gather_rate(&self) -> f32 {
         match self {
-            ResourceKind::Copper => 1.0,   // Same rate as logs for testing
-            ResourceKind::Tin => 1.0,      // Same rate as logs for testing
-            ResourceKind::Wood => 1.2,     // Faster for woodcutting
+            ResourceKind::Copper => 0.45,  // Mining: 45 copper ore per 100 seconds (~51-70s for full inventory)
+            ResourceKind::Tin => 0.45,     // Mining: 45 tin ore per 100 seconds (~51-70s for full inventory)  
+            ResourceKind::Wood => 0.55,    // Woodcutting: 55 logs per 100 seconds (~51s for full inventory)
         }
     }
 }
