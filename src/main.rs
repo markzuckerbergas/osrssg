@@ -38,6 +38,7 @@ fn main() {
                 (update_minimap, toggle_minimap_visibility, handle_minimap_click, handle_minimap_viewport_drag_start, handle_minimap_viewport_drag, update_minimap_viewport_appearance),
                 
                 // Debug systems
+                debug_entity_spawning,
                 debug_animation_assets,
                 debug_moving_components,
             ).chain()  // Run systems in this exact order

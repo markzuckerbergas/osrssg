@@ -11,19 +11,18 @@ pub fn setup_animations(
     info!("🔄 Setting up animation system");
     
     // Load animations using the modern GltfAssetLabel format
-    // Based on your comment: Animation0 = "flying" (walk), Animation1 = idle
-    // But let's try them both ways to see which is which
-    let animation_0 = asset_server.load(GltfAssetLabel::Animation(0).from_asset("player.glb"));
-    let animation_1 = asset_server.load(GltfAssetLabel::Animation(1).from_asset("player.glb"));
+    // Animation0 = walk, Animation1 = idle (confirmed by user)
+    let animation_0 = asset_server.load(GltfAssetLabel::Animation(0).from_asset("player.glb")); // walk
+    let animation_1 = asset_server.load(GltfAssetLabel::Animation(1).from_asset("player.glb")); // idle
     
     info!("📦 Loading animations: anim0={:?}, anim1={:?}", animation_0, animation_1);
     
     // Create animation graph with both clips
-    // We'll assign animation_0 as walk and animation_1 as idle initially
-    // You can swap these if they're backwards
+    // Animation0 = walk, Animation1 = idle (as you confirmed)
+    // So we assign them correctly: walk_node gets animation_0, idle_node gets animation_1
     let mut animation_graph = AnimationGraph::new();
-    let walk_node = animation_graph.add_clip(animation_0, 1.0, animation_graph.root);
-    let idle_node = animation_graph.add_clip(animation_1, 1.0, animation_graph.root);
+    let walk_node = animation_graph.add_clip(animation_0, 1.0, animation_graph.root); // animation_0 = walk
+    let idle_node = animation_graph.add_clip(animation_1, 1.0, animation_graph.root); // animation_1 = idle
     
     // Store the animation graph
     let animation_graph_handle = animation_graphs.add(animation_graph);
@@ -43,34 +42,38 @@ pub fn setup_animations(
 pub fn setup_animation_players(
     mut commands: Commands,
     // Look for any newly added AnimationPlayer components
-    new_players: Query<Entity, Added<AnimationPlayer>>,
+    mut new_players: Query<(Entity, &mut AnimationPlayer), Added<AnimationPlayer>>,
     // Find all controllable entities and their children to map relationships
     controllable_query: Query<(Entity, &Children), With<Controllable>>,
     children_query: Query<&Children>,
     animations: Res<UnitAnimations>,
 ) {
-    for player_entity in new_players.iter() {
+    for (player_entity, mut player) in new_players.iter_mut() {
         info!("🎮 Setting up AnimationPlayer for entity {:?}", player_entity);
+        
+        // FIRST: Add the animation graph handle immediately
+        commands.entity(player_entity).insert(AnimationGraphHandle(animations.animation_graph.clone()));
+        
+        // Immediately stop any default animations that might be playing
+        player.stop_all();
+        
+        // IMMEDIATELY start idle animation before any linking
+        player.play(animations.idle_node);
         
         // Find which controllable unit this AnimationPlayer belongs to
         let mut linked = false;
         for (unit_entity, children) in controllable_query.iter() {
             // Recursively search for the AnimationPlayer in the hierarchy
             if find_entity_in_hierarchy(player_entity, children, &children_query, 0) {
-                info!("🔗 Found! Linking AnimationPlayer {:?} to unit {:?}", player_entity, unit_entity);
-                commands.entity(player_entity).insert((
-                    AnimationGraphHandle(animations.animation_graph.clone()),
-                    UnitAnimationPlayer { unit_entity }
-                ));
+                commands.entity(player_entity).insert(UnitAnimationPlayer { unit_entity });
                 linked = true;
                 break;
             }
         }
         
-        // If no specific unit found, still add the graph (fallback)
+        // If no specific unit found, that's okay - we already added the graph and started idle
         if !linked {
-            info!("⚠️ No parent unit found for AnimationPlayer {:?}, adding graph only", player_entity);
-            commands.entity(player_entity).insert(AnimationGraphHandle(animations.animation_graph.clone()));
+            info!("⚠️ No parent unit found for AnimationPlayer {:?}", player_entity);
         }
     }
 }
@@ -123,21 +126,21 @@ pub fn animate_units(
         let playing_walk = player.is_playing_animation(animations.walk_node);
         let playing_idle = player.is_playing_animation(animations.idle_node);
         
-        // Debug: Log the state evaluation for every unit every frame
-        // info!("🔍 Unit {:?}: is_moving={}, playing_walk={}, playing_idle={}", 
-        //       unit_link.unit_entity, is_moving, playing_walk, playing_idle);
+        // If no animation is playing at all, start with idle
+        if !playing_walk && !playing_idle {
+            player.play(animations.idle_node);
+            continue;
+        }
         
         if is_moving {
-            // Play walk animation if not already playing
             if !playing_walk {
-                info!("🚶 Unit {:?} playing walk animation (was idle: {})", unit_link.unit_entity, playing_idle);
-                player.play(animations.walk_node).repeat();
+                player.stop_all();
+                player.play(animations.walk_node);
             }
         } else {
-            // Play idle animation if not already playing
             if !playing_idle {
-                info!("🧍 Unit {:?} playing idle animation (was walk: {})", unit_link.unit_entity, playing_walk);
-                player.play(animations.idle_node).repeat();
+                player.stop_all();
+                player.play(animations.idle_node);
             }
         }
     }
@@ -179,3 +182,14 @@ pub fn debug_moving_components(
         }
     }
 }
+
+/// Debug system to track when controllable entities are spawned
+pub fn debug_entity_spawning(
+    controllable_query: Query<Entity, Added<Controllable>>,
+) {
+    for entity in controllable_query.iter() {
+        info!("🆕 Controllable entity SPAWNED: {:?}", entity);
+    }
+}
+
+
