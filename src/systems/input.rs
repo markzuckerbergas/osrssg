@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::{components::*, resources::GameState};
+use crate::components::*;
 
 /// Handles left-click selection of units with 3D collision detection
 /// 
@@ -85,7 +85,6 @@ pub fn handle_movement_command(
     windows: Query<&Window>,
     cameras: Query<(&Camera, &GlobalTransform)>,
     selected_units: Query<Entity, With<Selected>>,
-    mut game_state: ResMut<GameState>,
     mut commands: Commands,
 ) {
     if !buttons.just_pressed(MouseButton::Right) {
@@ -104,11 +103,16 @@ pub fn handle_movement_command(
 
     // Get ground intersection point
     if let Some(destination) = ray_ground_intersection(ray, 0.0) {
-        game_state.move_destination = Some(destination);
+        info!("🎯 Movement command to: ({:.2}, {:.2}, {:.2})", destination.x, destination.y, destination.z);
         
-        // Add Moving component to all selected units
+        // Set individual destination for each selected unit
         for entity in selected_units.iter() {
-            commands.entity(entity).insert(Moving);
+            commands.entity(entity).insert((
+                crate::components::Destination {
+                    target: destination,
+                },
+                Moving,
+            ));
         }
     }
 }

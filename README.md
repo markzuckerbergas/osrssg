@@ -6,7 +6,11 @@ A real-time strategy game that merges the immersive world of Old School RuneScap
 
 - **Precise Unit Selection**: Left-click anywhere on a character (legs, torso, head) to select them
 - **Movement Commands**: Right-click to move selected units  
-- **Isometric Camera**: Classic RTS-style view with zoom and pan controls
+- **Enhanced Camera System**: Classic RTS-style view with multiple control options
+  - **Arrow Keys**: Manual camera movement with bounds checking
+  - **Edge Scrolling**: Move camera by moving mouse to screen edges
+  - **Camera Bounds**: Prevents camera from moving too far from action area
+  - **Zoom Controls**: Mouse wheel zoom with min/max limits
 - **Smooth Animations**: Walking and idle animations for units
 
 ## 🛠️ Technology Stack
@@ -34,8 +38,9 @@ cargo run
 
 ### Controls
 
-- **Arrow Keys**: Move camera around the map
-- **Mouse Wheel**: Zoom in/out
+- **Arrow Keys**: Move camera around the map (with boundary limits)
+- **Mouse Edge Scrolling**: Move mouse to screen edges to scroll camera
+- **Mouse Wheel**: Zoom in/out (with min/max limits)
 - **Left Click**: Select a unit (click anywhere on the character model)
 - **Right Click**: Move selected unit to clicked location
 
@@ -70,11 +75,12 @@ src/
 
 **Resources** store global state:
 - `GameState`: Current movement destination
-- `CameraSettings`: Camera movement and zoom parameters
+- `CameraSettings`: Enhanced camera parameters including bounds, edge scrolling, and zoom limits
+- `MinimapSettings`: Configuration for future minimap implementation
 
 **Systems** contain the game logic:
 - Input handling (selection and movement commands)
-- Camera controls (movement and zoom)
+- Enhanced camera controls (movement, zoom, edge scrolling, and bounds)
 - Unit movement and animation updates
 
 ## 🎯 For New Developers
@@ -132,9 +138,9 @@ The game can be compiled to WebAssembly for web deployment:
 - [ ] Building construction
 
 ### Camera Enhancements
-- [ ] Edge scrolling (move camera when mouse near screen edge)
+- [x] Edge scrolling (move camera when mouse near screen edge)
 - [ ] Minimap for navigation
-- [ ] Camera bounds (prevent moving too far from action)
+- [x] Camera bounds (prevent moving too far from action)
 
 ### Gameplay Features
 - [ ] Different unit types (workers, soldiers, etc.)

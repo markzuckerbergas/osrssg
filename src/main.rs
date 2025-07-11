@@ -27,8 +27,8 @@ fn main() {
                 // Movement (runs after animations to override any position changes)
                 move_units,
                 
-                // Camera controls (can run anytime)
-                (camera_movement, camera_zoom),
+                // Camera controls (enhanced with edge scrolling and bounds)
+                (camera_movement, camera_zoom, edge_scrolling),
                 
                 // Debug systems
                 debug_animation_assets,

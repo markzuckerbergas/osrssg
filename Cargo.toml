@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 bevy = "0.16.1"
 bevy_picking = { version = "0.16.1", features = ["bevy_mesh_picking_backend"] }
+rand = "0.8"
 
 [profile.dev]
 opt-level = 1
