@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 /// Moves units toward their individual destinations with destination collision prevention only
 pub fn move_units(
-    mut moving_units: Query<(&mut Transform, Entity, &Destination, Option<&mut StuckTimer>), With<Moving>>,
+    mut moving_units: Query<(&mut Transform, Entity, &Destination, Option<&mut StuckTimer>, Option<&crate::components::PrimaryTarget>), With<Moving>>,
     stationary_units: Query<&Transform, (With<Controllable>, Without<Moving>)>,
     static_obstacles: Query<&Transform, (With<StaticObstacle>, Without<Controllable>, Without<Moving>)>,
     mut commands: Commands,
@@ -22,23 +22,30 @@ pub fn move_units(
     }
     
     // Process moving units to determine who gets priority for contested destinations
-    let mut unit_data: Vec<(Entity, Vec3, Vec3, f32)> = Vec::new(); // (entity, current_pos, target_pos, distance)
+    let mut unit_data: Vec<(Entity, Vec3, Vec3, f32, bool)> = Vec::new(); // (entity, current_pos, target_pos, distance, is_primary)
     
-    for (transform, entity, destination, _) in moving_units.iter() {
+    for (transform, entity, destination, _, primary_target) in moving_units.iter() {
         let current_pos = transform.translation;
         let target_pos = Vec3::new(destination.target.x, current_pos.y, destination.target.z);
         let distance = current_pos.distance(target_pos);
-        unit_data.push((entity, current_pos, target_pos, distance));
+        let is_primary = primary_target.is_some();
+        unit_data.push((entity, current_pos, target_pos, distance, is_primary));
     }
     
-    // Sort by distance to destination (closest gets priority)
-    unit_data.sort_by(|a, b| a.3.partial_cmp(&b.3).unwrap_or(std::cmp::Ordering::Equal));
+    // Sort by primary target first (they get absolute priority), then by distance
+    unit_data.sort_by(|a, b| {
+        match (a.4, b.4) {
+            (true, false) => std::cmp::Ordering::Less,  // Primary target goes first
+            (false, true) => std::cmp::Ordering::Greater, // Non-primary goes after
+            _ => a.3.partial_cmp(&b.3).unwrap_or(std::cmp::Ordering::Equal), // Same priority level, sort by distance
+        }
+    });
     
-    // Assign destinations in order of priority (closest first)
+    // Assign destinations in order of priority (primary target first, then closest first)
     let mut assigned_destinations: Vec<Vec3> = occupied_destinations.clone();
     let mut unit_final_destinations: std::collections::HashMap<Entity, Vec3> = std::collections::HashMap::new();
     
-    for (entity, current_pos, target_pos, _distance) in unit_data {
+    for (entity, current_pos, target_pos, _distance, _is_primary) in unit_data {
         let grid_target = snap_to_grid(target_pos);
         
         // Check if target destination is available
@@ -50,24 +57,8 @@ pub fn move_units(
             assigned_destinations.push(grid_target);
             unit_final_destinations.insert(entity, grid_target);
         } else {
-            // Find alternative position (sorted by proximity to target)
-            let mut nearby_positions = [
-                grid_target + Vec3::new(1.0, 0.0, 0.0),  // East
-                grid_target + Vec3::new(-1.0, 0.0, 0.0), // West
-                grid_target + Vec3::new(0.0, 0.0, 1.0),  // North
-                grid_target + Vec3::new(0.0, 0.0, -1.0), // South
-                grid_target + Vec3::new(1.0, 0.0, 1.0),  // Northeast
-                grid_target + Vec3::new(-1.0, 0.0, 1.0), // Northwest
-                grid_target + Vec3::new(1.0, 0.0, -1.0), // Southeast
-                grid_target + Vec3::new(-1.0, 0.0, -1.0), // Southwest
-            ];
-            
-            // Sort alternatives by distance to the unit's current position
-            nearby_positions.sort_by(|a, b| {
-                let dist_a = current_pos.distance(*a);
-                let dist_b = current_pos.distance(*b);
-                dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
-            });
+            // Find alternative position prioritizing formation cohesion
+            let nearby_positions = generate_formation_alternatives(grid_target, current_pos);
             
             let mut found_alternative = false;
             for &alternative_pos in &nearby_positions {
@@ -90,7 +81,7 @@ pub fn move_units(
         }
     }
 
-    for (mut transform, entity, destination, stuck_timer) in moving_units.iter_mut() {
+    for (mut transform, entity, destination, stuck_timer, _primary_target) in moving_units.iter_mut() {
         let current_pos = transform.translation;
         let original_target = Vec3::new(destination.target.x, current_pos.y, destination.target.z);
         
@@ -233,6 +224,54 @@ fn snap_to_grid(position: Vec3) -> Vec3 {
         position.y, // Keep original Y height
         (position.z / GRID_SIZE).round() * GRID_SIZE,
     )
+}
+
+/// Generates alternative positions that prioritize formation cohesion
+fn generate_formation_alternatives(target: Vec3, current_pos: Vec3) -> Vec<Vec3> {
+    let mut alternatives = vec![
+        // Ring 1: Immediate neighbors (prioritize these for tight formations)
+        target + Vec3::new(1.0, 0.0, 0.0),  // East
+        target + Vec3::new(-1.0, 0.0, 0.0), // West
+        target + Vec3::new(0.0, 0.0, 1.0),  // North
+        target + Vec3::new(0.0, 0.0, -1.0), // South
+        target + Vec3::new(1.0, 0.0, 1.0),  // Northeast
+        target + Vec3::new(-1.0, 0.0, 1.0), // Northwest
+        target + Vec3::new(1.0, 0.0, -1.0), // Southeast
+        target + Vec3::new(-1.0, 0.0, -1.0), // Southwest
+        
+        // Ring 2: Slightly further (for larger groups)
+        target + Vec3::new(2.0, 0.0, 0.0),  // East 2
+        target + Vec3::new(-2.0, 0.0, 0.0), // West 2
+        target + Vec3::new(0.0, 0.0, 2.0),  // North 2
+        target + Vec3::new(0.0, 0.0, -2.0), // South 2
+        target + Vec3::new(2.0, 0.0, 1.0),  // Northeast variants
+        target + Vec3::new(1.0, 0.0, 2.0),
+        target + Vec3::new(-2.0, 0.0, 1.0), // Northwest variants
+        target + Vec3::new(-1.0, 0.0, 2.0),
+        target + Vec3::new(2.0, 0.0, -1.0), // Southeast variants
+        target + Vec3::new(1.0, 0.0, -2.0),
+        target + Vec3::new(-2.0, 0.0, -1.0), // Southwest variants
+        target + Vec3::new(-1.0, 0.0, -2.0),
+    ];
+    
+    // Sort by distance to target first (to maintain formation), then by distance to current position
+    alternatives.sort_by(|a, b| {
+        let target_dist_a = target.distance(*a);
+        let target_dist_b = target.distance(*b);
+        
+        // Primary sort: distance to formation target
+        match target_dist_a.partial_cmp(&target_dist_b) {
+            Some(std::cmp::Ordering::Equal) => {
+                // Secondary sort: distance to current position (for efficiency)
+                let current_dist_a = current_pos.distance(*a);
+                let current_dist_b = current_pos.distance(*b);
+                current_dist_a.partial_cmp(&current_dist_b).unwrap_or(std::cmp::Ordering::Equal)
+            }
+            other => other.unwrap_or(std::cmp::Ordering::Equal)
+        }
+    });
+    
+    alternatives
 }
 
 // Debug system to visualize collision circles (optional)

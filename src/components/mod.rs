@@ -88,3 +88,7 @@ impl Default for StuckTimer {
 /// Marks an entity as a static obstacle for collision detection
 #[derive(Component)]
 pub struct StaticObstacle;
+
+/// Marks a unit as having the primary target (exact clicked position) in a group movement
+#[derive(Component)]
+pub struct PrimaryTarget;

@@ -177,12 +177,21 @@ pub fn handle_movement_command(
             snap_to_grid(calculate_formation_position(base_destination, index, num_selected))
         };
 
-        commands.entity(*entity).insert((
+        let mut entity_commands = commands.entity(*entity);
+        entity_commands.insert((
             crate::components::Destination {
                 target: individual_destination,
             },
             Moving,
         ));
+
+        // Mark the first unit as primary target for priority handling
+        if num_selected > 1 && index == 0 {
+            entity_commands.insert(crate::components::PrimaryTarget);
+        } else {
+            // Remove PrimaryTarget if it exists from previous commands
+            entity_commands.remove::<crate::components::PrimaryTarget>();
+        }
     }
 }
 
@@ -421,40 +430,42 @@ fn calculate_formation_position(base_destination: Vec3, unit_index: usize, total
         return base_destination;
     }
 
-    let formation_radius = 1.0; // Base radius for formation
-    let expanded_radius = formation_radius * (1.0 + (total_units as f32 * 0.2)); // Expand for more units
-
-    if total_units == 2 {
-        // Two units: place them side by side
-        let offset = if unit_index == 0 { -0.7 } else { 0.7 };
-        return Vec3::new(
-            base_destination.x + offset,
-            base_destination.y,
-            base_destination.z,
-        );
-    } else if total_units <= 6 {
-        // Small group: arrange in a circle around the destination
-        let angle = (unit_index as f32 / total_units as f32) * 2.0 * std::f32::consts::PI;
-        return Vec3::new(
-            base_destination.x + expanded_radius * angle.cos(),
-            base_destination.y,
-            base_destination.z + expanded_radius * angle.sin(),
-        );
-    } else {
-        // Large group: arrange in concentric circles
-        let units_per_ring = 6;
-        let ring = unit_index / units_per_ring;
-        let position_in_ring = unit_index % units_per_ring;
-        
-        let ring_radius = expanded_radius * (1.0 + ring as f32 * 0.8);
-        let angle = (position_in_ring as f32 / units_per_ring as f32) * 2.0 * std::f32::consts::PI;
-        
-        return Vec3::new(
-            base_destination.x + ring_radius * angle.cos(),
-            base_destination.y,
-            base_destination.z + ring_radius * angle.sin(),
-        );
+    // First unit (index 0) ALWAYS gets the exact clicked destination
+    if unit_index == 0 {
+        return base_destination;
     }
+
+    // All other units get adjacent grid positions
+    // Define a tight formation pattern for adjacent tiles
+    let adjacent_offsets = vec![
+        Vec3::new(1.0, 0.0, 0.0),   // Right
+        Vec3::new(-1.0, 0.0, 0.0),  // Left  
+        Vec3::new(0.0, 0.0, 1.0),   // Forward
+        Vec3::new(0.0, 0.0, -1.0),  // Back
+        Vec3::new(1.0, 0.0, 1.0),   // Right-Forward
+        Vec3::new(-1.0, 0.0, 1.0),  // Left-Forward
+        Vec3::new(1.0, 0.0, -1.0),  // Right-Back
+        Vec3::new(-1.0, 0.0, -1.0), // Left-Back
+        // Second ring if needed
+        Vec3::new(2.0, 0.0, 0.0),   // Right 2
+        Vec3::new(-2.0, 0.0, 0.0),  // Left 2
+        Vec3::new(0.0, 0.0, 2.0),   // Forward 2
+        Vec3::new(0.0, 0.0, -2.0),  // Back 2
+        Vec3::new(2.0, 0.0, 1.0),   // Right-Forward 2
+        Vec3::new(-2.0, 0.0, 1.0),  // Left-Forward 2
+        Vec3::new(1.0, 0.0, 2.0),   // Forward-Right 2
+        Vec3::new(-1.0, 0.0, 2.0),  // Forward-Left 2
+    ];
+
+    // Get the offset for this unit (unit_index - 1 because first unit gets exact position)
+    let offset_index = (unit_index - 1) % adjacent_offsets.len();
+    let offset = adjacent_offsets[offset_index];
+
+    Vec3::new(
+        base_destination.x + offset.x,
+        base_destination.y,
+        base_destination.z + offset.z,
+    )
 }
 
 // Grid-based movement constants (OSRS style)
