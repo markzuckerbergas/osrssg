@@ -20,19 +20,19 @@ pub fn setup_scene(
     // Lighting setup
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 0.3,
-        affects_lightmapped_meshes: true,
+        brightness: 0.8,
+        affects_lightmapped_meshes: false,
     });
 
-    // Main directional light (sun)
+    // Directional light
     commands.spawn((
         DirectionalLight {
-            color: Color::WHITE,
-            illuminance: 5000.0,
-            shadows_enabled: true,
+            color: Color::srgb(1.0, 0.95, 0.85),
+            illuminance: 8000.0,
+            shadows_enabled: false,
             ..default()
         },
-        Transform::from_xyz(-2.0, 6.0, 2.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(-1.0, 10.0, 1.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
     // Spawn multiple player units with proper spacing
@@ -108,11 +108,44 @@ pub fn setup_scene(
         ));
     }
 
-    // Ground plane
+    // Simple road with grass on the sides
+    
+    // Main grass areas (left and right of road)
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(20.0, 20.0))),
-        MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.3))),
-        Transform::default(),
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(7.0, 20.0))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.15, 0.45, 0.1), // Darker grass green
+            metallic: 0.0,
+            perceptual_roughness: 1.0,
+            reflectance: 0.0,
+            ..default()
+        })),
+        Transform::from_xyz(-6.5, 0.0, 0.0),
+    ));
+    
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(7.0, 20.0))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.15, 0.45, 0.1), // Darker grass green
+            metallic: 0.0,
+            perceptual_roughness: 1.0,
+            reflectance: 0.0,
+            ..default()
+        })),
+        Transform::from_xyz(6.5, 0.0, 0.0),
+    ));
+    
+    // Small road in the middle
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(4.0, 20.0))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.4, 0.4, 0.4),
+            metallic: 0.0,
+            perceptual_roughness: 0.8,
+            reflectance: 0.0,
+            ..default()
+        })),
+        Transform::from_xyz(0.0, 0.01, 0.0),
     ));
 
     // Main isometric camera
@@ -122,7 +155,7 @@ pub fn setup_scene(
             scaling_mode: ScalingMode::FixedVertical {
                 viewport_height: 2.0,
             },
-            scale: 8.0, // Increased from 5.0 to 8.0 for more zoom out
+            scale: 8.0,
             ..OrthographicProjection::default_3d()
         }),
         Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
