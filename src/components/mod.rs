@@ -15,21 +15,7 @@ use bevy::prelude::*;
 // - No stacking: each slot holds exactly 1 resource
 // - Close gather radius (1.5 units) 
 //
-// Key components:// NEW - O(1) resource query per resource, supports multiple workers
-let mut resource_gatherers: HashMap<Entity, Vec<Entity>> = HashMap::new();
-
-// Group units by target resource
-for unit in units.iter() {
-    resource_gatherers.entry(unit.target).push(unit.entity);
-}
-
-// Process each resource with all its workers together
-for (resource_entity, workers) in resource_gatherers.iter() {
-    let resource = resource_nodes.get_mut(resource_entity)?; // Single lookup
-    for worker in workers {
-        // Process worker on shared resource...
-    }
-}
+// Key components:
 // - ResourceNode: Marks gatherable resources in the world
 // - Inventory: Per-unit 28-slot bag with 1 item per slot
 // - GatherTask: State machine for gathering behavior

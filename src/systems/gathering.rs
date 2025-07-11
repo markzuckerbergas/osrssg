@@ -179,6 +179,18 @@ pub fn process_gathering_state_machine(
                                     resource_node.remaining,
                                     inventory.used_slots()
                                 );
+                                
+                                // Check if resource is now completely depleted after gathering
+                                if resource_node.remaining == 0 {
+                                    info!("💀 Resource {} completely depleted - despawning entity", resource_node.kind.display_name());
+                                    commands.entity(*resource_entity).despawn();
+                                    
+                                    // Remove gather tasks from all units targeting this resource
+                                    for &worker_entity in unit_entities {
+                                        commands.entity(worker_entity).remove::<GatherTask>();
+                                    }
+                                    break; // Exit early since resource is gone
+                                }
                             } else {
                                 warn!("⚠️ Failed to add {} {} to inventory (inventory full?)", gather_amount, item_id.display_name());
                             }
