@@ -393,10 +393,10 @@ pub fn handle_minimap_drag(
     // Check if we're starting to drag anywhere on the minimap
     let mut should_start_drag = false;
     if buttons.just_pressed(MouseButton::Left) {
-        // Check if clicking on minimap area
+        // Check if clicking on minimap area (top-right corner)
         let minimap_rect = Rect::from_corners(
-            Vec2::new(window.width() - 200.0, window.height() - 200.0),
-            Vec2::new(window.width(), window.height()),
+            Vec2::new(window.width() - 210.0, 10.0), // Top-right: 200px + 10px margin from right, 10px from top
+            Vec2::new(window.width() - 10.0, 210.0), // 200px height + 10px margin
         );
 
         if minimap_rect.contains(cursor_position) {
@@ -408,10 +408,10 @@ pub fn handle_minimap_drag(
             let total_padding = container_padding + border_width;
             let map_area_size = minimap_settings.size.x - (total_padding * 2.0);
 
-            // Convert click position to normalized minimap coordinates
+            // Convert click position to normalized minimap coordinates (updated for top-right position)
             let minimap_top_left = Vec2::new(
-                window.width() - 200.0 + total_padding,
-                window.height() - 200.0 + total_padding,
+                window.width() - 200.0 - 10.0 + total_padding, // Adjusted for top-right position
+                10.0 + total_padding, // Top position instead of bottom
             );
             let relative_pos = cursor_position - minimap_top_left;
             let normalized_pos = Vec2::new(

@@ -288,8 +288,8 @@ pub fn handle_drag_selection_start(
     // Check if click is on minimap - if so, don't start drag selection (minimap has priority)
     if let Ok(_minimap_node) = minimap_query.single() {
         let minimap_rect = Rect::from_corners(
-            Vec2::new(window.width() - 200.0, window.height() - 200.0),
-            Vec2::new(window.width(), window.height()),
+            Vec2::new(window.width() - 210.0, 10.0), // Top-right: 200px + 10px margin from right, 10px from top
+            Vec2::new(window.width() - 10.0, 210.0), // 200px height + 10px margin
         );
 
         if minimap_rect.contains(cursor_pos) {
