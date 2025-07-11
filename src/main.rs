@@ -9,7 +9,10 @@ fn main() {
         .init_resource::<CameraSettings>()
         .init_resource::<MinimapSettings>()
         .init_resource::<MinimapDragState>()
-        .add_systems(Startup, (setup_scene, setup_animations, setup_minimap, setup_game_ui))
+        .add_systems(
+            Startup,
+            (setup_scene, setup_animations, setup_minimap, setup_game_ui),
+        )
         .add_systems(
             Update,
             (

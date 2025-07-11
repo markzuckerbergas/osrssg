@@ -108,10 +108,10 @@ pub fn setup_scene(
                     0.05,
                     row as f32 - 2.0,
                 );
-                
+
                 // Check if this fallback position is safe
                 let mut safe = true;
-                
+
                 // Check against existing characters
                 for existing_pos in &spawn_positions {
                     if fallback_pos.distance(*existing_pos) < min_distance {
@@ -119,7 +119,7 @@ pub fn setup_scene(
                         break;
                     }
                 }
-                
+
                 // Check against boxes
                 if safe {
                     for box_pos in &box_positions {
@@ -130,12 +130,12 @@ pub fn setup_scene(
                         }
                     }
                 }
-                
+
                 if safe {
                     return fallback_pos;
                 }
             }
-            
+
             // Final emergency fallback - far from everything
             Vec3::new((i as f32) * 2.0 - 10.0, 0.05, -10.0)
         });
@@ -168,7 +168,7 @@ pub fn setup_scene(
     }
 
     // Simple road with grass on the sides
-    
+
     // Main grass areas (left and right of road)
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(7.0, 20.0))),
@@ -181,7 +181,7 @@ pub fn setup_scene(
         })),
         Transform::from_xyz(-6.5, 0.0, 0.0),
     ));
-    
+
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(7.0, 20.0))),
         MeshMaterial3d(materials.add(StandardMaterial {
@@ -193,7 +193,7 @@ pub fn setup_scene(
         })),
         Transform::from_xyz(6.5, 0.0, 0.0),
     ));
-    
+
     // Small road in the middle
     commands.spawn((
         Mesh3d(meshes.add(Plane3d::default().mesh().size(4.0, 20.0))),
@@ -218,8 +218,13 @@ pub fn setup_scene(
 
     // Use the box positions we defined earlier (now characters have spawned safely around them)
     for (i, position) in box_positions.iter().enumerate() {
-        info!("📦 Spawning obstacle box {} at position ({:.2}, {:.2})", i + 1, position.x, position.z);
-        
+        info!(
+            "📦 Spawning obstacle box {} at position ({:.2}, {:.2})",
+            i + 1,
+            position.x,
+            position.z
+        );
+
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(0.8, 0.5, 0.8))), // 0.8x0.5x0.8 box
             MeshMaterial3d(box_material.clone()),
@@ -237,8 +242,8 @@ pub fn setup_scene(
                 viewport_height: 2.0,
             },
             scale: 8.0,
-            near: -50.0,  // Extended near plane (negative for orthographic)
-            far: 50.0,    // Extended far plane
+            near: -50.0, // Extended near plane (negative for orthographic)
+            far: 50.0,   // Extended far plane
             ..OrthographicProjection::default_3d()
         }),
         Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),

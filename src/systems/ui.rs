@@ -13,7 +13,7 @@ pub struct GameUI;
 /// Sets up the game UI with spawn button
 pub fn setup_game_ui(mut commands: Commands) {
     info!("🎨 Setting up game UI");
-    
+
     // Create UI container centered above the minimap
     commands
         .spawn((
@@ -28,7 +28,7 @@ pub fn setup_game_ui(mut commands: Commands) {
                 ..default()
             },
             BackgroundColor(Color::NONE), // Transparent background
-            GlobalZIndex(1000), // Much higher than minimap's GlobalZIndex(102)
+            GlobalZIndex(1000),           // Much higher than minimap's GlobalZIndex(102)
             GameUI,
             Name::new("GameUI"),
         ))
@@ -80,13 +80,18 @@ pub fn handle_spawn_button(
         match *interaction {
             Interaction::Pressed => {
                 info!("🆕 Spawn button pressed!");
-                
+
                 // Button pressed visual feedback
                 *background_color = Color::srgb(0.1, 0.1, 0.1).into();
                 *border_color = Color::WHITE.into();
-                
+
                 // Spawn new character
-                spawn_random_character(&mut commands, &asset_server, &existing_units, &static_obstacles);
+                spawn_random_character(
+                    &mut commands,
+                    &asset_server,
+                    &existing_units,
+                    &static_obstacles,
+                );
             }
             Interaction::Hovered => {
                 // Button hover visual feedback
@@ -113,30 +118,30 @@ fn spawn_random_character(
     let min_distance = 1.0; // Minimum distance between characters
     let box_clearance = 1.0; // Minimum distance from boxes
     let max_attempts = 50;
-    
+
     // Collect existing positions
     let mut existing_positions = Vec::new();
     for transform in existing_units.iter() {
         existing_positions.push(transform.translation);
     }
-    
+
     // Collect box positions
     let mut box_positions = Vec::new();
     for transform in static_obstacles.iter() {
         box_positions.push(transform.translation);
     }
-    
+
     let mut attempts = 0;
     let mut spawn_position = None;
-    
+
     // Try to find a valid spawn position
     while attempts < max_attempts {
         let x = rng.gen_range(-8..8) as f32; // Integer grid coordinates
         let z = rng.gen_range(-8..8) as f32;
         let potential_pos = Vec3::new(x, 0.05, z); // Grid-aligned position
-        
+
         let mut position_valid = true;
-        
+
         // Check distance to all existing characters
         for existing_pos in &existing_positions {
             if potential_pos.distance(*existing_pos) < min_distance {
@@ -144,7 +149,7 @@ fn spawn_random_character(
                 break;
             }
         }
-        
+
         // Check distance to all boxes
         if position_valid {
             for box_pos in &box_positions {
@@ -154,24 +159,24 @@ fn spawn_random_character(
                 }
             }
         }
-        
+
         if position_valid {
             spawn_position = Some(potential_pos);
             break;
         }
-        
+
         attempts += 1;
     }
-    
+
     if let Some(pos) = spawn_position {
         let player_scene = asset_server.load("player.glb#Scene0");
-        
+
         let character_transform = Transform {
             translation: pos,
             scale: Vec3::splat(0.03),
             ..default()
         };
-        
+
         commands.spawn((
             SceneRoot(player_scene),
             character_transform,
@@ -183,12 +188,15 @@ fn spawn_random_character(
             StuckTimer::default(),
             Name::new(format!("Player_{}", rng.gen::<u32>())),
         ));
-        
+
         info!(
             "👤 Spawned new character at position ({:.0}, {:.0})",
             pos.x, pos.z
         );
     } else {
-        info!("❌ Could not find valid spawn position after {} attempts", max_attempts);
+        info!(
+            "❌ Could not find valid spawn position after {} attempts",
+            max_attempts
+        );
     }
 }

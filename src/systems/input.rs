@@ -44,11 +44,11 @@ fn ray_intersects_cylinder(ray: Ray3d, cylinder_center: Vec3, radius: f32, heigh
 fn ray_box_intersection(ray: Ray3d, box_center: Vec3, box_size: Vec3) -> bool {
     let ray_origin = ray.origin;
     let ray_dir = ray.direction.normalize();
-    
+
     // Calculate the box bounds
     let min_bounds = box_center - box_size * 0.5;
     let max_bounds = box_center + box_size * 0.5;
-    
+
     // Calculate intersection with each axis
     let t_min_x = (min_bounds.x - ray_origin.x) / ray_dir.x;
     let t_max_x = (max_bounds.x - ray_origin.x) / ray_dir.x;
@@ -56,16 +56,28 @@ fn ray_box_intersection(ray: Ray3d, box_center: Vec3, box_size: Vec3) -> bool {
     let t_max_y = (max_bounds.y - ray_origin.y) / ray_dir.y;
     let t_min_z = (min_bounds.z - ray_origin.z) / ray_dir.z;
     let t_max_z = (max_bounds.z - ray_origin.z) / ray_dir.z;
-    
+
     // Ensure min < max for each axis
-    let (t_min_x, t_max_x) = if t_min_x > t_max_x { (t_max_x, t_min_x) } else { (t_min_x, t_max_x) };
-    let (t_min_y, t_max_y) = if t_min_y > t_max_y { (t_max_y, t_min_y) } else { (t_min_y, t_max_y) };
-    let (t_min_z, t_max_z) = if t_min_z > t_max_z { (t_max_z, t_min_z) } else { (t_min_z, t_max_z) };
-    
+    let (t_min_x, t_max_x) = if t_min_x > t_max_x {
+        (t_max_x, t_min_x)
+    } else {
+        (t_min_x, t_max_x)
+    };
+    let (t_min_y, t_max_y) = if t_min_y > t_max_y {
+        (t_max_y, t_min_y)
+    } else {
+        (t_min_y, t_max_y)
+    };
+    let (t_min_z, t_max_z) = if t_min_z > t_max_z {
+        (t_max_z, t_min_z)
+    } else {
+        (t_min_z, t_max_z)
+    };
+
     // Find the intersection range
     let t_min = t_min_x.max(t_min_y).max(t_min_z);
     let t_max = t_max_x.min(t_max_y).min(t_max_z);
-    
+
     // Check if intersection exists and is in front of the camera
     t_max >= 0.0 && t_min <= t_max
 }
@@ -74,19 +86,19 @@ fn ray_box_intersection(ray: Ray3d, box_center: Vec3, box_size: Vec3) -> bool {
 fn find_closest_adjacent_tile(box_center: Vec3, from_position: Vec3) -> Vec3 {
     // Grid-snap the box center
     let box_grid = snap_to_grid(box_center);
-    
+
     // Possible adjacent tiles (4 cardinal directions)
     let adjacent_tiles = [
         Vec3::new(box_grid.x + 1.0, box_center.y, box_grid.z), // East
-        Vec3::new(box_grid.x - 1.0, box_center.y, box_grid.z), // West  
+        Vec3::new(box_grid.x - 1.0, box_center.y, box_grid.z), // West
         Vec3::new(box_grid.x, box_center.y, box_grid.z + 1.0), // North
         Vec3::new(box_grid.x, box_center.y, box_grid.z - 1.0), // South
     ];
-    
+
     // Find the closest adjacent tile to the click position
     let mut closest_tile = adjacent_tiles[0];
     let mut closest_distance = from_position.distance(closest_tile);
-    
+
     for tile in &adjacent_tiles[1..] {
         let distance = from_position.distance(*tile);
         if distance < closest_distance {
@@ -94,7 +106,7 @@ fn find_closest_adjacent_tile(box_center: Vec3, from_position: Vec3) -> Vec3 {
             closest_tile = *tile;
         }
     }
-    
+
     closest_tile
 }
 
@@ -143,12 +155,12 @@ pub fn handle_movement_command(
         // Clicked on a box - find the closest adjacent tile
         let raw_ground_pos = ray_ground_intersection(ray, 0.0).unwrap_or(box_center);
         let adjacent_tile = find_closest_adjacent_tile(box_center, raw_ground_pos);
-        
+
         info!(
             "📦 Clicked on box at ({:.0}, {:.0}) -> moving to adjacent tile ({:.0}, {:.0})",
             box_center.x, box_center.z, adjacent_tile.x, adjacent_tile.z
         );
-        
+
         adjacent_tile
     } else {
         // Normal ground click - snap to grid
@@ -174,7 +186,11 @@ pub fn handle_movement_command(
             base_destination
         } else {
             // Multiple units get spread out destinations (also grid-snapped)
-            snap_to_grid(calculate_formation_position(base_destination, index, num_selected))
+            snap_to_grid(calculate_formation_position(
+                base_destination,
+                index,
+                num_selected,
+            ))
         };
 
         let mut entity_commands = commands.entity(*entity);
@@ -384,44 +400,56 @@ pub fn handle_drag_selection_complete(
         }
     } else {
         // Precise screen-space selection (no tolerance buffer)
-        info!("🎯 Precise drag selection: ({:.1}, {:.1}) to ({:.1}, {:.1})", min_x, min_y, max_x, max_y);
+        info!(
+            "🎯 Precise drag selection: ({:.1}, {:.1}) to ({:.1}, {:.1})",
+            min_x, min_y, max_x, max_y
+        );
 
         // Create precise selection rectangle in screen space
-        let selection_rect = Rect::from_corners(
-            Vec2::new(min_x, min_y),
-            Vec2::new(max_x, max_y)
-        );
+        let selection_rect = Rect::from_corners(Vec2::new(min_x, min_y), Vec2::new(max_x, max_y));
 
         // AoE2 Feature: Collect units with their screen positions for ordering
         let mut selectable_units = Vec::new();
-        
+
         for (entity, unit_transform) in units.iter() {
             let unit_world_pos = unit_transform.translation();
-            
+
             // Convert unit position to screen space for precise selection
             if let Ok(screen_pos) = camera.world_to_viewport(cam_transform, unit_world_pos) {
                 // Only select if the unit's screen position is INSIDE the selection rectangle
                 if selection_rect.contains(screen_pos) {
                     selectable_units.push((entity, screen_pos, unit_world_pos));
-                    info!("✅ Unit at screen ({:.1}, {:.1}) is inside selection box", screen_pos.x, screen_pos.y);
+                    info!(
+                        "✅ Unit at screen ({:.1}, {:.1}) is inside selection box",
+                        screen_pos.x, screen_pos.y
+                    );
                 } else {
-                    info!("❌ Unit at screen ({:.1}, {:.1}) is outside selection box", screen_pos.x, screen_pos.y);
+                    info!(
+                        "❌ Unit at screen ({:.1}, {:.1}) is outside selection box",
+                        screen_pos.x, screen_pos.y
+                    );
                 }
             }
         }
-        
+
         // AoE2 Feature: Sort by screen Y position (top to bottom priority)
-        selectable_units.sort_by(|a, b| a.1.y.partial_cmp(&b.1.y).unwrap_or(std::cmp::Ordering::Equal));
-        
+        selectable_units.sort_by(|a, b| {
+            a.1.y
+                .partial_cmp(&b.1.y)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         // AoE2 Feature: Selection limit (40 units in original, 60 in HD)
         const MAX_SELECTION: usize = 40;
         let units_to_select = selectable_units.into_iter().take(MAX_SELECTION);
-        
+
         for (entity, _screen_pos, unit_world_pos) in units_to_select {
             commands.entity(entity).insert(Selected);
             selected_count += 1;
-            info!("✅ Selected unit at world pos ({:.1}, {:.1})", 
-                  unit_world_pos.x, unit_world_pos.z);
+            info!(
+                "✅ Selected unit at world pos ({:.1}, {:.1})",
+                unit_world_pos.x, unit_world_pos.z
+            );
         }
     }
 
@@ -450,7 +478,11 @@ fn cleanup_drag_selection(
 }
 
 /// Calculates individual formation positions for multiple selected units
-fn calculate_formation_position(base_destination: Vec3, unit_index: usize, total_units: usize) -> Vec3 {
+fn calculate_formation_position(
+    base_destination: Vec3,
+    unit_index: usize,
+    total_units: usize,
+) -> Vec3 {
     if total_units <= 1 {
         return base_destination;
     }
@@ -464,7 +496,7 @@ fn calculate_formation_position(base_destination: Vec3, unit_index: usize, total
     // Define a tight formation pattern for adjacent tiles
     let adjacent_offsets = vec![
         Vec3::new(1.0, 0.0, 0.0),   // Right
-        Vec3::new(-1.0, 0.0, 0.0),  // Left  
+        Vec3::new(-1.0, 0.0, 0.0),  // Left
         Vec3::new(0.0, 0.0, 1.0),   // Forward
         Vec3::new(0.0, 0.0, -1.0),  // Back
         Vec3::new(1.0, 0.0, 1.0),   // Right-Forward
@@ -472,14 +504,14 @@ fn calculate_formation_position(base_destination: Vec3, unit_index: usize, total
         Vec3::new(1.0, 0.0, -1.0),  // Right-Back
         Vec3::new(-1.0, 0.0, -1.0), // Left-Back
         // Second ring if needed
-        Vec3::new(2.0, 0.0, 0.0),   // Right 2
-        Vec3::new(-2.0, 0.0, 0.0),  // Left 2
-        Vec3::new(0.0, 0.0, 2.0),   // Forward 2
-        Vec3::new(0.0, 0.0, -2.0),  // Back 2
-        Vec3::new(2.0, 0.0, 1.0),   // Right-Forward 2
-        Vec3::new(-2.0, 0.0, 1.0),  // Left-Forward 2
-        Vec3::new(1.0, 0.0, 2.0),   // Forward-Right 2
-        Vec3::new(-1.0, 0.0, 2.0),  // Forward-Left 2
+        Vec3::new(2.0, 0.0, 0.0),  // Right 2
+        Vec3::new(-2.0, 0.0, 0.0), // Left 2
+        Vec3::new(0.0, 0.0, 2.0),  // Forward 2
+        Vec3::new(0.0, 0.0, -2.0), // Back 2
+        Vec3::new(2.0, 0.0, 1.0),  // Right-Forward 2
+        Vec3::new(-2.0, 0.0, 1.0), // Left-Forward 2
+        Vec3::new(1.0, 0.0, 2.0),  // Forward-Right 2
+        Vec3::new(-1.0, 0.0, 2.0), // Forward-Left 2
     ];
 
     // Get the offset for this unit (unit_index - 1 because first unit gets exact position)
@@ -534,14 +566,14 @@ pub fn handle_double_click_selection(
     let current_time = time.elapsed_secs();
     let double_click_threshold = 0.3; // seconds
     let double_click_distance = 20.0; // pixels
-    
+
     // Check if this is a double-click
     let is_double_click = current_time - *last_click_time < double_click_threshold
         && cursor_pos.distance(*last_click_pos) < double_click_distance;
-    
+
     *last_click_time = current_time;
     *last_click_pos = cursor_pos;
-    
+
     if !is_double_click {
         return;
     }
@@ -566,15 +598,15 @@ pub fn handle_double_click_selection(
     if let Some(_clicked_entity) = clicked_unit {
         // AoE2 Feature: Select all visible units of the same type
         // For now, we'll select all controllable units on screen (since we don't have unit types yet)
-        
+
         // Deselect current selection
         for entity in selected.iter() {
             commands.entity(entity).remove::<Selected>();
         }
-        
+
         let mut selected_count = 0;
         const MAX_SELECTION: usize = 40; // AoE2 limit
-        
+
         for (entity, unit_transform) in units.iter().take(MAX_SELECTION) {
             let unit_pos = unit_transform.translation();
             // Check if unit is visible on screen
@@ -583,7 +615,10 @@ pub fn handle_double_click_selection(
                 selected_count += 1;
             }
         }
-        
-        info!("🔄 Double-click: Selected {} visible units of same type", selected_count);
+
+        info!(
+            "🔄 Double-click: Selected {} visible units of same type",
+            selected_count
+        );
     }
 }

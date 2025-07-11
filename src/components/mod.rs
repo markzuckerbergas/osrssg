@@ -59,7 +59,7 @@ pub struct UnitCollision {
 impl Default for UnitCollision {
     fn default() -> Self {
         Self {
-            radius: 0.4, // Half a tile
+            radius: 0.4,                  // Half a tile
             allow_friendly_overlap: true, // AoE2-style behavior
         }
     }

@@ -8,16 +8,19 @@ pub fn debug_animations(
 ) {
     for (entity, _player) in animation_players.iter() {
         info!("🎭 New AnimationPlayer found on entity: {:?}", entity);
-        
+
         // Check if the animation graph exists
         if let Some(graph) = animation_graphs.get(&animations.animation_graph) {
-            info!("✅ Animation graph found with {} nodes", graph.graph.node_count());
+            info!(
+                "✅ Animation graph found with {} nodes",
+                graph.graph.node_count()
+            );
             info!("🚶 Walk animation index: {:?}", animations.walk_node);
             info!("🧍 Idle animation index: {:?}", animations.idle_node);
         } else {
             info!("❌ Animation graph not found or not loaded yet");
         }
-        
+
         // Check if any animation is playing (without specific animation index)
         info!("🎮 AnimationPlayer state available");
     }
@@ -38,8 +41,8 @@ pub fn debug_animation_playback(
             result.repeat();
         }
     }
-    
-    // Press 'W' to test playing walk animation  
+
+    // Press 'W' to test playing walk animation
     if input.just_pressed(KeyCode::KeyW) {
         info!("🔄 Testing walk animation playback...");
         for mut player in animation_players.iter_mut() {
@@ -57,7 +60,7 @@ pub fn debug_scene_loading(
 ) {
     for (entity, _scene) in scenes.iter() {
         info!("🎬 Scene loaded on entity: {:?}", entity);
-        
+
         // Check children recursively
         fn print_children(entity: Entity, children_query: &Query<&Children>, depth: usize) {
             let indent = "  ".repeat(depth);
@@ -68,7 +71,7 @@ pub fn debug_scene_loading(
                 }
             }
         }
-        
+
         print_children(entity, &children, 1);
     }
 }
