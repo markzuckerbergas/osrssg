@@ -122,7 +122,7 @@ pub fn setup_scene(
             scaling_mode: ScalingMode::FixedVertical {
                 viewport_height: 2.0,
             },
-            scale: 5.0,
+            scale: 8.0, // Increased from 5.0 to 8.0 for more zoom out
             ..OrthographicProjection::default_3d()
         }),
         Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
