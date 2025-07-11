@@ -1,185 +1,206 @@
 use crate::components::*;
 use bevy::prelude::*;
-use rand::Rng;
 
-/// Moves units toward their individual destinations with collision detection
+/// Moves units toward their individual destinations with destination collision prevention only
 pub fn move_units(
-    mut moving_units: Query<(&mut Transform, Entity, &Destination, &CollisionRadius, Option<&mut StuckTimer>), With<Moving>>,
-    other_units: Query<(&Transform, &CollisionRadius), (With<Controllable>, Without<Moving>)>,
-    static_obstacles: Query<(&Transform, &CollisionRadius), (With<StaticObstacle>, Without<Moving>)>,
+    mut moving_units: Query<(&mut Transform, Entity, &Destination, Option<&mut StuckTimer>), With<Moving>>,
+    stationary_units: Query<&Transform, (With<Controllable>, Without<Moving>)>,
+    static_obstacles: Query<&Transform, (With<StaticObstacle>, Without<Controllable>, Without<Moving>)>,
     mut commands: Commands,
     time: Res<Time>,
 ) {
     let move_speed = 2.0; // units per second
     let arrival_threshold = 0.2; // how close to consider "arrived" (larger for grid-based movement)
-    let movement_threshold = 0.01; // minimum movement to not be considered stuck
 
-    // Collect positions to check for collisions
-    let mut unit_positions: Vec<(Entity, Vec3, f32)> = Vec::new();
+    // Collect destination positions to prevent final position conflicts
+    let mut occupied_destinations: Vec<Vec3> = Vec::new();
     
-    // Add stationary units
-    for (transform, collision_radius) in other_units.iter() {
-        unit_positions.push((Entity::PLACEHOLDER, transform.translation, collision_radius.radius));
+    // Add current positions of stationary units (they occupy their current position)
+    for transform in stationary_units.iter() {
+        let grid_pos = snap_to_grid(transform.translation);
+        occupied_destinations.push(grid_pos);
     }
     
-    // Add static obstacles
-    for (transform, collision_radius) in static_obstacles.iter() {
-        unit_positions.push((Entity::PLACEHOLDER, transform.translation, collision_radius.radius));
-    }
+    // Process moving units to determine who gets priority for contested destinations
+    let mut unit_data: Vec<(Entity, Vec3, Vec3, f32)> = Vec::new(); // (entity, current_pos, target_pos, distance)
     
-    // Add moving units
-    for (transform, entity, _, collision_radius, _) in moving_units.iter() {
-        unit_positions.push((entity, transform.translation, collision_radius.radius));
-    }
-
-    for (mut transform, entity, destination, collision_radius, mut stuck_timer) in moving_units.iter_mut() {
+    for (transform, entity, destination, _) in moving_units.iter() {
         let current_pos = transform.translation;
         let target_pos = Vec3::new(destination.target.x, current_pos.y, destination.target.z);
-
-        let direction = (target_pos - current_pos).normalize_or_zero();
         let distance = current_pos.distance(target_pos);
+        unit_data.push((entity, current_pos, target_pos, distance));
+    }
+    
+    // Sort by distance to destination (closest gets priority)
+    unit_data.sort_by(|a, b| a.3.partial_cmp(&b.3).unwrap_or(std::cmp::Ordering::Equal));
+    
+    // Assign destinations in order of priority (closest first)
+    let mut assigned_destinations: Vec<Vec3> = occupied_destinations.clone();
+    let mut unit_final_destinations: std::collections::HashMap<Entity, Vec3> = std::collections::HashMap::new();
+    
+    for (entity, current_pos, target_pos, _distance) in unit_data {
+        let grid_target = snap_to_grid(target_pos);
+        
+        // Check if target destination is available
+        let destination_available = !assigned_destinations.iter()
+            .any(|&occupied_pos| occupied_pos.distance(grid_target) < 0.1);
+        
+        if destination_available {
+            // Assign the exact target (closest unit gets priority)
+            assigned_destinations.push(grid_target);
+            unit_final_destinations.insert(entity, grid_target);
+        } else {
+            // Find alternative position (sorted by proximity to target)
+            let mut nearby_positions = [
+                grid_target + Vec3::new(1.0, 0.0, 0.0),  // East
+                grid_target + Vec3::new(-1.0, 0.0, 0.0), // West
+                grid_target + Vec3::new(0.0, 0.0, 1.0),  // North
+                grid_target + Vec3::new(0.0, 0.0, -1.0), // South
+                grid_target + Vec3::new(1.0, 0.0, 1.0),  // Northeast
+                grid_target + Vec3::new(-1.0, 0.0, 1.0), // Northwest
+                grid_target + Vec3::new(1.0, 0.0, -1.0), // Southeast
+                grid_target + Vec3::new(-1.0, 0.0, -1.0), // Southwest
+            ];
+            
+            // Sort alternatives by distance to the unit's current position
+            nearby_positions.sort_by(|a, b| {
+                let dist_a = current_pos.distance(*a);
+                let dist_b = current_pos.distance(*b);
+                dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            
+            let mut found_alternative = false;
+            for &alternative_pos in &nearby_positions {
+                let alternative_available = !assigned_destinations.iter()
+                    .any(|&occupied_pos| occupied_pos.distance(alternative_pos) < 0.1);
+                
+                if alternative_available {
+                    assigned_destinations.push(alternative_pos);
+                    unit_final_destinations.insert(entity, alternative_pos);
+                    found_alternative = true;
+                    break;
+                }
+            }
+            
+            if !found_alternative {
+                // No alternatives found, assign current position (stay put)
+                let current_grid = snap_to_grid(current_pos);
+                unit_final_destinations.insert(entity, current_grid);
+            }
+        }
+    }
+
+    for (mut transform, entity, destination, stuck_timer) in moving_units.iter_mut() {
+        let current_pos = transform.translation;
+        let original_target = Vec3::new(destination.target.x, current_pos.y, destination.target.z);
+        
+        // Get the pre-assigned final destination for this unit
+        let final_destination = unit_final_destinations.get(&entity)
+            .copied()
+            .unwrap_or_else(|| snap_to_grid(original_target));
+
+        // Move toward the FINAL destination, not the original target
+        let direction = (Vec3::new(final_destination.x, current_pos.y, final_destination.z) - current_pos).normalize_or_zero();
+        let distance = current_pos.distance(Vec3::new(final_destination.x, current_pos.y, final_destination.z));
 
         if distance <= arrival_threshold {
-            // Arrived - stop moving and remove destination
-            info!(
-                "✅ Unit arrived at destination ({:.2}, {:.2})",
-                target_pos.x, target_pos.z
-            );
+            // Smoothly arrive at the final destination (no teleporting)
+            transform.translation = Vec3::new(final_destination.x, current_pos.y, final_destination.z);
+            
+            if final_destination.distance(snap_to_grid(original_target)) < 0.1 {
+                info!(
+                    "✅ Unit arrived at exact destination ({:.0}, {:.0})",
+                    final_destination.x, final_destination.z
+                );
+            } else {
+                info!(
+                    "✅ Unit arrived at alternative position ({:.0}, {:.0}) near target ({:.0}, {:.0})",
+                    final_destination.x, final_destination.z, original_target.x, original_target.z
+                );
+            }
+            
+            // Remove movement components
             commands
                 .entity(entity)
                 .remove::<Moving>()
                 .remove::<Destination>()
                 .remove::<StuckTimer>();
         } else {
-            // Initialize or update stuck timer
-            let stuck_timer = match stuck_timer {
-                Some(ref mut timer) => timer,
-                None => {
-                    // Add stuck timer if it doesn't exist
-                    commands.entity(entity).insert(StuckTimer {
-                        last_position: current_pos,
-                        ..Default::default()
-                    });
-                    continue; // Skip this frame to let the component be added
-                }
-            };
-
-            // Calculate desired movement
+            // Still moving toward destination - check for box collisions during transit
+            // Initialize stuck timer if needed
+            if stuck_timer.is_none() {
+                commands.entity(entity).insert(StuckTimer {
+                    last_position: current_pos,
+                    ..Default::default()
+                });
+                continue; // Skip this frame to let the component be added
+            }
+            
+            let mut stuck_timer = stuck_timer.unwrap();
+            
+            // Calculate movement
             let move_distance = move_speed * time.delta_secs();
             let desired_position = current_pos + direction * move_distance;
-
-            // Check for collisions with other units
-            let mut can_move = true;
-            let mut final_position = desired_position;
             
-            for (other_entity, other_pos, other_radius) in &unit_positions {
-                // Skip checking collision with self
-                if *other_entity == entity {
-                    continue;
-                }
+            // Check for box collisions during transit
+            let mut final_position = desired_position;
+            let unit_radius = 0.3; // Unit collision radius
+            
+            for obstacle_transform in static_obstacles.iter() {
+                let box_center = obstacle_transform.translation;
+                let box_size = Vec3::new(0.8, 0.5, 0.8); // Size of our boxes
+                let box_radius = (box_size.x + box_size.z) * 0.25; // Approximate radius for collision
                 
-                let distance_to_other = desired_position.distance(*other_pos);
-                let combined_radius = collision_radius.radius + other_radius + 0.1; // Add small buffer
+                let distance_to_box = desired_position.distance(box_center);
                 
-                if distance_to_other < combined_radius {
-                    can_move = false;
+                if distance_to_box < (unit_radius + box_radius) {
+                    // Collision detected - push unit away from box
+                    let push_direction = (desired_position - box_center).normalize_or_zero();
+                    let safe_distance = unit_radius + box_radius + 0.1; // Add small buffer
+                    final_position = box_center + push_direction * safe_distance;
                     
-                    // Try multiple avoidance strategies with randomization to break deadlocks
-                    let mut rng = rand::thread_rng();
-                    let random_factor = rng.gen_range(-0.3..0.3); // Add some randomness
-                    let entity_seed = entity.index() as f32 * 0.1; // Use entity ID for consistent but different behavior
-                    
-                    let avoidance_attempts = [
-                        // Strategy 1: Perpendicular avoidance with randomization
-                        {
-                            let to_obstacle = (*other_pos - current_pos).normalize_or_zero();
-                            let perpendicular = Vec3::new(-to_obstacle.z, 0.0, to_obstacle.x);
-                            let option1 = current_pos + (perpendicular + Vec3::new(random_factor, 0.0, entity_seed)) * move_distance;
-                            let option2 = current_pos + (-perpendicular + Vec3::new(-random_factor, 0.0, -entity_seed)) * move_distance;
-                            let dist1 = option1.distance(target_pos);
-                            let dist2 = option2.distance(target_pos);
-                            if dist1 < dist2 { option1 } else { option2 }
-                        },
-                        // Strategy 2: Step back and try again (with slight randomization)
-                        current_pos + direction * (move_distance * (0.2 + random_factor.abs())),
-                        // Strategy 3: Move at an angle towards target (randomized angle)
-                        {
-                            let to_target = (target_pos - current_pos).normalize_or_zero();
-                            let angle_offset = (std::f32::consts::PI / 4.0) + random_factor + entity_seed;
-                            let rotated_dir = Vec3::new(
-                                to_target.x * angle_offset.cos() - to_target.z * angle_offset.sin(),
-                                0.0,
-                                to_target.x * angle_offset.sin() + to_target.z * angle_offset.cos(),
-                            );
-                            current_pos + rotated_dir * move_distance
-                        },
-                        // Strategy 4: Try the opposite randomized angle
-                        {
-                            let to_target = (target_pos - current_pos).normalize_or_zero();
-                            let angle_offset = -(std::f32::consts::PI / 4.0) - random_factor - entity_seed;
-                            let rotated_dir = Vec3::new(
-                                to_target.x * angle_offset.cos() - to_target.z * angle_offset.sin(),
-                                0.0,
-                                to_target.x * angle_offset.sin() + to_target.z * angle_offset.cos(),
-                            );
-                            current_pos + rotated_dir * move_distance
-                        },
-                        // Strategy 5: Random lateral movement (emergency deadlock breaker)
-                        {
-                            let random_angle = rng.gen_range(0.0..2.0 * std::f32::consts::PI);
-                            let random_dir = Vec3::new(random_angle.cos(), 0.0, random_angle.sin());
-                            current_pos + random_dir * (move_distance * 0.5)
-                        },
-                    ];
-                    
-                    // Try each avoidance strategy
-                    for attempt_pos in &avoidance_attempts {
-                        let mut attempt_clear = true;
-                        for (check_entity, check_pos, check_radius) in &unit_positions {
-                            if *check_entity == entity {
-                                continue;
-                            }
-                            let check_distance = attempt_pos.distance(*check_pos);
-                            let check_combined_radius = collision_radius.radius + check_radius + 0.1;
-                            if check_distance < check_combined_radius {
-                                attempt_clear = false;
-                                break;
-                            }
+                    // If pushed position is further from target, try to slide around the box
+                    if final_position.distance(Vec3::new(final_destination.x, current_pos.y, final_destination.z)) > 
+                       current_pos.distance(Vec3::new(final_destination.x, current_pos.y, final_destination.z)) {
+                        
+                        // Try sliding perpendicular to the box
+                        let to_box = (box_center - current_pos).normalize_or_zero();
+                        let perpendicular = Vec3::new(-to_box.z, 0.0, to_box.x);
+                        
+                        let slide_option1 = current_pos + perpendicular * move_distance;
+                        let slide_option2 = current_pos - perpendicular * move_distance;
+                        
+                        // Choose the slide direction that gets us closer to target
+                        let target_3d = Vec3::new(final_destination.x, current_pos.y, final_destination.z);
+                        if slide_option1.distance(target_3d) < slide_option2.distance(target_3d) {
+                            final_position = slide_option1;
+                        } else {
+                            final_position = slide_option2;
                         }
                         
-                        if attempt_clear {
-                            final_position = *attempt_pos;
-                            can_move = true;
-                            break;
+                        // Check if sliding position also collides
+                        if final_position.distance(box_center) < (unit_radius + box_radius) {
+                            // Can't slide, just stop
+                            final_position = current_pos;
                         }
                     }
-                    
-                    if can_move {
-                        break; // Found a solution, no need to check other obstacles
-                    }
+                    break; // Only handle one collision at a time
                 }
             }
             
-            let mut actually_moved = false;
-            let old_position = current_pos;
+            let new_position = final_position;
             
-            if can_move {
-                // Move to the calculated position (either direct or avoidance)
-                transform.translation = final_position;
-                actually_moved = true;
-            }
-            // If completely blocked, actually_moved remains false
-
-            // Update stuck timer
-            if actually_moved && old_position.distance(transform.translation) > movement_threshold {
-                // Unit moved significantly, reset stuck timer
+            // Check if unit is making progress (for stuck detection)
+            let movement_threshold = 0.01;
+            if current_pos.distance(new_position) > movement_threshold {
+                // Unit is moving, reset stuck timer
                 stuck_timer.timer = 0.0;
-                stuck_timer.last_position = transform.translation;
+                stuck_timer.last_position = new_position;
             } else {
-                // Unit didn't move or moved very little, increment stuck timer
+                // Unit isn't moving much, increment stuck timer
                 stuck_timer.timer += time.delta_secs();
                 
-                // Check if unit has been stuck too long
+                // Check if unit has been stuck too long (e.g., blocked by static obstacle)
                 if stuck_timer.timer > stuck_timer.stuck_threshold {
                     info!("🚫 Unit stuck for {:.1}s, cancelling movement", stuck_timer.timer);
                     commands
@@ -190,6 +211,9 @@ pub fn move_units(
                     continue;
                 }
             }
+            
+            // Move the unit (no collision checking with other units during transit)
+            transform.translation = new_position;
 
             // Rotate to face movement direction
             if direction.length() > 0.001 {
@@ -197,6 +221,18 @@ pub fn move_units(
             }
         }
     }
+}
+
+// Grid-based movement constants (OSRS style)
+const GRID_SIZE: f32 = 1.0; // Size of each grid square
+
+/// Snaps a world position to the nearest grid center (OSRS-style movement)
+fn snap_to_grid(position: Vec3) -> Vec3 {
+    Vec3::new(
+        (position.x / GRID_SIZE).round() * GRID_SIZE,
+        position.y, // Keep original Y height
+        (position.z / GRID_SIZE).round() * GRID_SIZE,
+    )
 }
 
 // Debug system to visualize collision circles (optional)
