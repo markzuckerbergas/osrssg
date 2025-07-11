@@ -84,3 +84,7 @@ impl Default for StuckTimer {
         }
     }
 }
+
+/// Marks an entity as a static obstacle for collision detection
+#[derive(Component)]
+pub struct StaticObstacle;

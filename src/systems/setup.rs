@@ -148,6 +148,37 @@ pub fn setup_scene(
         Transform::from_xyz(0.0, 0.01, 0.0),
     ));
 
+    // Add some boxes as obstacles
+    let box_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.6, 0.4, 0.2), // Brown wooden color
+        metallic: 0.0,
+        perceptual_roughness: 0.8,
+        reflectance: 0.0,
+        ..default()
+    });
+
+    // Create several boxes scattered around the scene
+    let box_positions = [
+        Vec3::new(2.0, 0.25, 1.0),   // On the road
+        Vec3::new(-3.0, 0.25, -2.0), // On grass
+        Vec3::new(4.0, 0.25, -3.0),  // On grass
+        Vec3::new(-1.0, 0.25, 3.0),  // On road
+        Vec3::new(5.5, 0.25, 2.0),   // On grass
+        Vec3::new(-5.0, 0.25, 0.0),  // On grass
+    ];
+
+    for (i, position) in box_positions.iter().enumerate() {
+        info!("📦 Spawning obstacle box {} at position ({:.2}, {:.2})", i + 1, position.x, position.z);
+        
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(0.8, 0.5, 0.8))), // 0.8x0.5x0.8 box
+            MeshMaterial3d(box_material.clone()),
+            Transform::from_translation(*position),
+            StaticObstacle, // Mark as static obstacle for collision detection
+            CollisionRadius { radius: 0.6 }, // Slightly larger collision radius than visual size
+        ));
+    }
+
     // Main isometric camera
     commands.spawn((
         Camera3d::default(),

@@ -6,6 +6,7 @@ use rand::Rng;
 pub fn move_units(
     mut moving_units: Query<(&mut Transform, Entity, &Destination, &CollisionRadius, Option<&mut StuckTimer>), With<Moving>>,
     other_units: Query<(&Transform, &CollisionRadius), (With<Controllable>, Without<Moving>)>,
+    static_obstacles: Query<(&Transform, &CollisionRadius), (With<StaticObstacle>, Without<Moving>)>,
     mut commands: Commands,
     time: Res<Time>,
 ) {
@@ -18,6 +19,11 @@ pub fn move_units(
     
     // Add stationary units
     for (transform, collision_radius) in other_units.iter() {
+        unit_positions.push((Entity::PLACEHOLDER, transform.translation, collision_radius.radius));
+    }
+    
+    // Add static obstacles
+    for (transform, collision_radius) in static_obstacles.iter() {
         unit_positions.push((Entity::PLACEHOLDER, transform.translation, collision_radius.radius));
     }
     
