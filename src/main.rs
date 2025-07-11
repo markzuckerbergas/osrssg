@@ -9,7 +9,7 @@ fn main() {
         .init_resource::<CameraSettings>()
         .init_resource::<MinimapSettings>()
         .init_resource::<MinimapDragState>()
-        .add_systems(Startup, (setup_scene, setup_animations, setup_minimap))
+        .add_systems(Startup, (setup_scene, setup_animations, setup_minimap, setup_game_ui))
         .add_systems(
             Update,
             (
@@ -22,6 +22,8 @@ fn main() {
                     handle_drag_selection_complete,
                     handle_movement_command,
                 ),
+                // UI interactions
+                handle_spawn_button,
                 // Movement
                 move_units,
                 // Animation
@@ -31,9 +33,9 @@ fn main() {
                 // Minimap updates
                 (update_minimap, toggle_minimap_visibility),
                 // Debug
-                debug_entity_spawning,
-                debug_animation_assets,
-                debug_moving_components,
+                // debug_entity_spawning,
+                // debug_animation_assets,
+                // debug_moving_components,
                 // debug_collision_circles, // Uncomment to see collision circles
             )
                 .chain(),

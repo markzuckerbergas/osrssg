@@ -6,19 +6,20 @@ pub fn debug_animations(
     animation_graphs: Res<Assets<AnimationGraph>>,
     animations: Res<crate::resources::UnitAnimations>,
 ) {
-    for (entity, player) in animation_players.iter() {
+    for (entity, _player) in animation_players.iter() {
         info!("🎭 New AnimationPlayer found on entity: {:?}", entity);
         
         // Check if the animation graph exists
-        if let Some(graph) = animation_graphs.get(&animations.graph) {
+        if let Some(graph) = animation_graphs.get(&animations.animation_graph) {
             info!("✅ Animation graph found with {} nodes", graph.graph.node_count());
-            info!("🚶 Walk animation index: {:?}", animations.walk);
-            info!("🧍 Idle animation index: {:?}", animations.idle);
+            info!("🚶 Walk animation index: {:?}", animations.walk_node);
+            info!("🧍 Idle animation index: {:?}", animations.idle_node);
         } else {
             info!("❌ Animation graph not found or not loaded yet");
         }
         
-        info!("🎮 AnimationPlayer state: playing={}", player.is_playing());
+        // Check if any animation is playing (without specific animation index)
+        info!("🎮 AnimationPlayer state available");
     }
 }
 
@@ -32,7 +33,7 @@ pub fn debug_animation_playback(
     if input.just_pressed(KeyCode::KeyP) {
         info!("🔄 Testing idle animation playback...");
         for mut player in animation_players.iter_mut() {
-            let result = player.play(animations.idle);
+            let result = player.play(animations.idle_node);
             info!("🎵 Play result: {:?}", result);
             result.repeat();
         }
@@ -42,7 +43,7 @@ pub fn debug_animation_playback(
     if input.just_pressed(KeyCode::KeyW) {
         info!("🔄 Testing walk animation playback...");
         for mut player in animation_players.iter_mut() {
-            let result = player.play(animations.walk);
+            let result = player.play(animations.walk_node);
             info!("🎵 Play result: {:?}", result);
             result.repeat();
         }
@@ -63,7 +64,7 @@ pub fn debug_scene_loading(
             if let Ok(children) = children_query.get(entity) {
                 for child in children.iter() {
                     info!("{}└─ Child: {:?}", indent, child);
-                    print_children(*child, children_query, depth + 1);
+                    print_children(child, children_query, depth + 1);
                 }
             }
         }

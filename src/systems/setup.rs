@@ -50,7 +50,7 @@ pub fn setup_scene(
     ];
 
     // Number of characters to spawn
-    let num_characters = 5;
+    let num_characters = 3;
     let min_distance = 1.0; // Minimum distance between characters
     let box_clearance = 1.0; // Minimum distance from boxes
     info!("🎭 Spawning {} player characters", num_characters);
