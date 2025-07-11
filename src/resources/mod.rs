@@ -24,7 +24,7 @@ pub struct CameraSettings {
 impl Default for CameraSettings {
     fn default() -> Self {
         Self {
-            move_speed: 5.0,
+            move_speed: 8.0,        // Matched with edge_scroll_speed for consistency
             zoom_speed: 0.1,
             min_zoom: 1.0,
             max_zoom: 10.0,
