@@ -27,6 +27,7 @@ fn main() {
         .add_systems(
             Update,
             (
+                // === INPUT PHASE ===
                 // Minimap (runs first to get priority)
                 (handle_minimap_drag, handle_minimap_click),
                 // Input handling
@@ -38,14 +39,19 @@ fn main() {
                     handle_movement_command,
                     issue_gather_task, // Process gather events right after movement commands
                 ),
-                // Gathering state machine
+                
+                // === MOVEMENT PHASE ===
+                move_units, // Update positions first
+                
+                // === ECONOMY PHASE ===
+                // Process economic activities after movement is complete
                 process_gathering_state_machine,
-                // UI updates
-                update_inventory_ui, // Update inventory UI based on selection/inventory changes
-                // Movement
-                move_units,
+                
+                // === UI & VISUALS PHASE ===
                 // Animation
                 (setup_animation_players, animate_units),
+                // UI updates
+                update_inventory_ui, // Update inventory UI based on selection/inventory changes
                 // Camera controls
                 (camera_movement, edge_scrolling),
                 // Minimap updates

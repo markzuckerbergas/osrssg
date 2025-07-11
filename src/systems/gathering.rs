@@ -1,5 +1,6 @@
 use crate::components::*;
 use bevy::prelude::*;
+use std::collections::HashMap;
 
 /// System that processes GatherEvent and creates GatherTask components
 /// This runs right after movement command generation
@@ -70,6 +71,7 @@ fn snap_to_grid(position: Vec3) -> Vec3 {
 
 /// System that processes the gathering state machine
 /// Handles Walking → Harvesting → Full state transitions
+/// Optimized for multiple workers on the same resource node
 pub fn process_gathering_state_machine(
     time: Res<Time>,
     mut units: Query<(Entity, &Transform, &mut GatherTask, &mut Inventory), With<Controllable>>,
@@ -77,98 +79,119 @@ pub fn process_gathering_state_machine(
     mut inventory_events: EventWriter<InventoryChanged>,
     mut commands: Commands,
 ) {
-    for (unit_entity, unit_transform, mut gather_task, mut inventory) in units.iter_mut() {
-        let Ok((mut resource_node, resource_transform)) = resource_nodes.get_mut(gather_task.target) else {
-            // Resource node no longer exists, remove gather task
-            commands.entity(unit_entity).remove::<GatherTask>();
+    // Group units by their target resource for optimized processing
+    let mut resource_gatherers: HashMap<Entity, Vec<Entity>> = HashMap::new();
+    
+    // First pass: collect all units targeting each resource
+    for (unit_entity, _, gather_task, _) in units.iter() {
+        resource_gatherers
+            .entry(gather_task.target)
+            .or_insert_with(Vec::new)
+            .push(unit_entity);
+    }
+    
+    // Second pass: process each resource with its gatherers
+    for (resource_entity, unit_entities) in resource_gatherers.iter() {
+        let Ok((mut resource_node, resource_transform)) = resource_nodes.get_mut(*resource_entity) else {
+            // Resource node no longer exists, remove gather tasks for all units targeting it
+            for &unit_entity in unit_entities {
+                commands.entity(unit_entity).remove::<GatherTask>();
+            }
             continue;
         };
 
-        let distance = unit_transform.translation.distance(resource_transform.translation);
+        // Process each unit targeting this resource
+        for &unit_entity in unit_entities {
+            let Ok((_, unit_transform, mut gather_task, mut inventory)) = units.get_mut(unit_entity) else {
+                continue;
+            };
 
-        match gather_task.state {
-            GatherState::Walking => {
-                // Check if we're close enough to start harvesting
-                if distance <= resource_node.gather_radius {
-                    gather_task.state = GatherState::Harvesting;
-                    // Remove Moving component so unit stops walking
-                    commands.entity(unit_entity).remove::<Moving>();
-                    info!(
-                        "🔨 Unit started harvesting {} (distance: {:.1})",
-                        resource_node.kind.display_name(),
-                        distance
-                    );
-                }
-            }
-            
-            GatherState::Harvesting => {
-                // Check if we're still in range
-                if distance > resource_node.gather_radius {
-                    gather_task.state = GatherState::Walking;
-                    // Add Moving component back to resume walking
-                    commands.entity(unit_entity).insert(Moving);
-                    info!("🚶 Unit moved out of range, resuming walk to resource");
-                    continue;
-                }
+            let distance = unit_transform.translation.distance(resource_transform.translation);
 
-                // Check if inventory is full
-                if inventory.is_full() {
-                    gather_task.state = GatherState::Full;
-                    info!("📦 Unit inventory is full, stopping harvest");
-                    continue;
-                }
-
-                // Check if resource is depleted
-                if resource_node.remaining == 0 {
-                    // Resource depleted, remove gather task
-                    commands.entity(unit_entity).remove::<GatherTask>();
-                    info!("💀 Resource depleted, removing gather task");
-                    continue;
-                }
-
-                // Process gathering timer
-                gather_task.timer.tick(time.delta());
-                
-                if gather_task.timer.just_finished() {
-                    // Always gather exactly 1 item when timer finishes (gather_rate controls timing, not amount)
-                    let gather_amount = 1_u16.min(resource_node.remaining as u16);
-                    
-                    if gather_amount > 0 {
-                        // Convert resource type to item
-                        let item_id = ItemId::from(resource_node.kind);
-                        
-                        // Add to inventory (respecting stacking rules)
-                        let max_stack = item_id.max_stack_size();
-                        let added = inventory.add_items(item_id, gather_amount, max_stack);
-                        
-                        if added > 0 {
-                            // Reduce resource node remaining
-                            resource_node.remaining = resource_node.remaining.saturating_sub(added as u32);
-                            
-                            // Emit inventory changed event
-                            inventory_events.write(InventoryChanged {
-                                unit: unit_entity,
-                            });
-                            
-                            info!(
-                                "⛏️ Gathered {} {} (remaining: {}, inventory: {}/28 slots)", 
-                                added,
-                                resource_node.kind.display_name(),
-                                resource_node.remaining,
-                                inventory.used_slots()
-                            );
-                        } else {
-                            warn!("⚠️ Failed to add {} {} to inventory (inventory full?)", gather_amount, item_id.display_name());
-                        }
-                    } else {
-                        warn!("⚠️ Gather amount is 0 for {}", resource_node.kind.display_name());
+            match gather_task.state {
+                GatherState::Walking => {
+                    // Check if we're close enough to start harvesting
+                    if distance <= resource_node.gather_radius {
+                        gather_task.state = GatherState::Harvesting;
+                        // Remove Moving component so unit stops walking
+                        commands.entity(unit_entity).remove::<Moving>();
+                        info!(
+                            "🔨 Unit started harvesting {} (distance: {:.1})",
+                            resource_node.kind.display_name(),
+                            distance
+                        );
                     }
                 }
-            }
-            
-            GatherState::Full => {
-                // Unit is idle with full inventory - wait for player command
-                // Could add visual feedback here (different animation, etc.)
+                
+                GatherState::Harvesting => {
+                    // Check if we're still in range
+                    if distance > resource_node.gather_radius {
+                        gather_task.state = GatherState::Walking;
+                        // Add Moving component back to resume walking
+                        commands.entity(unit_entity).insert(Moving);
+                        info!("🚶 Unit moved out of range, resuming walk to resource");
+                        continue;
+                    }
+
+                    // Check if inventory is full
+                    if inventory.is_full() {
+                        gather_task.state = GatherState::Full;
+                        info!("📦 Unit inventory is full, stopping harvest");
+                        continue;
+                    }
+
+                    // Check if resource is depleted (shared check for all workers)
+                    if resource_node.remaining == 0 {
+                        // Resource depleted, remove gather task
+                        commands.entity(unit_entity).remove::<GatherTask>();
+                        info!("💀 Resource depleted, removing gather task");
+                        continue;
+                    }
+
+                    // Process gathering timer
+                    gather_task.timer.tick(time.delta());
+                    
+                    if gather_task.timer.just_finished() {
+                        // Always gather exactly 1 item when timer finishes (gather_rate controls timing, not amount)
+                        let gather_amount = 1_u16.min(resource_node.remaining as u16);
+                        
+                        if gather_amount > 0 && resource_node.remaining > 0 {
+                            // Convert resource type to item
+                            let item_id = ItemId::from(resource_node.kind);
+                            
+                            // Add to inventory (respecting stacking rules)
+                            let max_stack = item_id.max_stack_size();
+                            let added = inventory.add_items(item_id, gather_amount, max_stack);
+                            
+                            if added > 0 {
+                                // Reduce resource node remaining (shared resource pool)
+                                resource_node.remaining = resource_node.remaining.saturating_sub(added as u32);
+                                
+                                // Emit inventory changed event
+                                inventory_events.write(InventoryChanged {
+                                    unit: unit_entity,
+                                });
+                                
+                                info!(
+                                    "⛏️ Gathered {} {} (remaining: {}, inventory: {}/28 slots)", 
+                                    added,
+                                    resource_node.kind.display_name(),
+                                    resource_node.remaining,
+                                    inventory.used_slots()
+                                );
+                            } else {
+                                warn!("⚠️ Failed to add {} {} to inventory (inventory full?)", gather_amount, item_id.display_name());
+                            }
+                        } else {
+                            warn!("⚠️ Gather amount is 0 for {}", resource_node.kind.display_name());
+                        }
+                    }
+                }
+                
+                GatherState::Full => {
+                    // Unit is idle with full inventory - wait for player command
+                    // Could add visual feedback here (different animation, etc.)
+                }
             }
         }
     }
