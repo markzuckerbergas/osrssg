@@ -49,6 +49,22 @@ pub struct DragSelection {
 #[derive(Component)]
 pub struct DragSelectionBox;
 
+/// AoE2-style unit collision properties
+#[derive(Component)]
+pub struct UnitCollision {
+    pub radius: f32,
+    pub allow_friendly_overlap: bool, // AoE2 feature: allies can overlap during movement
+}
+
+impl Default for UnitCollision {
+    fn default() -> Self {
+        Self {
+            radius: 0.4, // Half a tile
+            allow_friendly_overlap: true, // AoE2-style behavior
+        }
+    }
+}
+
 /// Links an AnimationPlayer to its parent controllable unit
 #[derive(Component)]
 pub struct UnitAnimationPlayer {

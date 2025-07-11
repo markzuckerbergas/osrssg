@@ -160,6 +160,10 @@ pub fn setup_scene(
             character_transform,
             Controllable,
             CollisionRadius::default(),
+            UnitCollision {
+                radius: 0.5,
+                allow_friendly_overlap: true,
+            },
         ));
     }
 

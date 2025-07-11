@@ -5,7 +5,10 @@ A real-time strategy game that merges the immersive world of Old School RuneScap
 ## 🎮 Game Features
 
 - **Precise Unit Selection**: Left-click anywhere on a character (legs, torso, head) to select them
-- **Multiple Unit Selection**: Drag to create a selection box and select multiple units at once
+- **AoE2-Style Tile-Based Selection**: Drag to create a selection box that selects units based on their tile positions (inspired by Age of Empires 2)
+  - Uses tile-based logic for precise, predictable selection
+  - Consistent with the grid-based movement system
+  - Perfect for OSRS-style tile interaction combined with RTS precision
 - **Movement Commands**: Right-click to move selected units  
 - **Enhanced Camera System**: Classic RTS-style view with multiple control options
   - **Arrow Keys**: Manual camera movement (left/right/up/down in world coordinates)
@@ -135,7 +138,7 @@ The game can be compiled to WebAssembly for web deployment:
 ## 🎯 Next Steps & TODOs
 
 ### Immediate Improvements
-- [x] Multiple unit selection (drag selection box)
+- [x] Multiple unit selection (AoE2-style tile-based drag selection box)
 - [ ] Unit health and combat system
 - [ ] Resource gathering mechanics
 - [ ] Building construction

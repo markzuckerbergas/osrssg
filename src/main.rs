@@ -17,6 +17,7 @@ fn main() {
                 (handle_minimap_drag, handle_minimap_click),
                 // Input handling
                 (
+                    handle_double_click_selection, // AoE2-style double-click selection
                     handle_drag_selection_start,
                     handle_drag_selection_update,
                     handle_drag_selection_complete,

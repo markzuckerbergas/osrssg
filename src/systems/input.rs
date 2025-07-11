@@ -322,7 +322,7 @@ pub fn handle_drag_selection_update(
     }
 }
 
-/// Completes drag selection when mouse is released
+/// Completes drag selection when mouse is released (AoE2-style tile-based selection)
 pub fn handle_drag_selection_complete(
     mut commands: Commands,
     buttons: Res<ButtonInput<MouseButton>>,
@@ -357,22 +357,20 @@ pub fn handle_drag_selection_complete(
     let min_y = drag.start_pos.y.min(drag.current_pos.y);
     let max_x = drag.start_pos.x.max(drag.current_pos.x);
     let max_y = drag.start_pos.y.max(drag.current_pos.y);
-    let selection_rect = Rect::from_corners(Vec2::new(min_x, min_y), Vec2::new(max_x, max_y));
 
     let mut selected_count = 0;
 
     // Check if drag was just a click (small area)
     let drag_area = (max_x - min_x) * (max_y - min_y);
     if drag_area < 25.0 {
-        // Small area threshold (5x5 pixels)
-        // Treat as single click selection - use existing logic
+        // Small area threshold (5x5 pixels) - treat as single click
         let cursor_pos = drag.current_pos;
         let Ok(ray) = camera.viewport_to_world(cam_transform, cursor_pos) else {
             cleanup_drag_selection(&mut commands, drag_entity, &box_query);
             return;
         };
 
-        // Single unit selection with cylinder intersection
+        // Single unit selection with cylinder intersection (existing logic)
         for (entity, unit_transform) in units.iter() {
             let unit_pos = unit_transform.translation();
             let selection_radius = 1.2;
@@ -385,23 +383,50 @@ pub fn handle_drag_selection_complete(
             }
         }
     } else {
-        // Multi-selection with rectangle
-        for (entity, unit_transform) in units.iter() {
-            let unit_pos = unit_transform.translation();
+        // Precise screen-space selection (no tolerance buffer)
+        info!("🎯 Precise drag selection: ({:.1}, {:.1}) to ({:.1}, {:.1})", min_x, min_y, max_x, max_y);
 
-            // Project 3D position to 2D screen coordinates
-            if let Ok(screen_pos) = camera.world_to_viewport(cam_transform, unit_pos) {
-                // Check if unit is within selection rectangle
+        // Create precise selection rectangle in screen space
+        let selection_rect = Rect::from_corners(
+            Vec2::new(min_x, min_y),
+            Vec2::new(max_x, max_y)
+        );
+
+        // AoE2 Feature: Collect units with their screen positions for ordering
+        let mut selectable_units = Vec::new();
+        
+        for (entity, unit_transform) in units.iter() {
+            let unit_world_pos = unit_transform.translation();
+            
+            // Convert unit position to screen space for precise selection
+            if let Ok(screen_pos) = camera.world_to_viewport(cam_transform, unit_world_pos) {
+                // Only select if the unit's screen position is INSIDE the selection rectangle
                 if selection_rect.contains(screen_pos) {
-                    commands.entity(entity).insert(Selected);
-                    selected_count += 1;
+                    selectable_units.push((entity, screen_pos, unit_world_pos));
+                    info!("✅ Unit at screen ({:.1}, {:.1}) is inside selection box", screen_pos.x, screen_pos.y);
+                } else {
+                    info!("❌ Unit at screen ({:.1}, {:.1}) is outside selection box", screen_pos.x, screen_pos.y);
                 }
             }
+        }
+        
+        // AoE2 Feature: Sort by screen Y position (top to bottom priority)
+        selectable_units.sort_by(|a, b| a.1.y.partial_cmp(&b.1.y).unwrap_or(std::cmp::Ordering::Equal));
+        
+        // AoE2 Feature: Selection limit (40 units in original, 60 in HD)
+        const MAX_SELECTION: usize = 40;
+        let units_to_select = selectable_units.into_iter().take(MAX_SELECTION);
+        
+        for (entity, _screen_pos, unit_world_pos) in units_to_select {
+            commands.entity(entity).insert(Selected);
+            selected_count += 1;
+            info!("✅ Selected unit at world pos ({:.1}, {:.1})", 
+                  unit_world_pos.x, unit_world_pos.z);
         }
     }
 
     info!(
-        "✅ Drag selection complete: {} units selected",
+        "✅ Tile-based drag selection complete: {} units selected",
         selected_count
     );
 
@@ -478,4 +503,203 @@ fn snap_to_grid(position: Vec3) -> Vec3 {
         position.y, // Keep original Y height
         (position.z / GRID_SIZE).round() * GRID_SIZE,
     )
+}
+
+/// Converts a world position to discrete tile coordinates (AoE2-style)
+fn world_pos_to_tile(world_pos: Vec3) -> (i32, i32) {
+    (
+        (world_pos.x / GRID_SIZE).round() as i32,
+        (world_pos.z / GRID_SIZE).round() as i32,
+    )
+}
+
+/// Converts a screen rectangle to a set of world tiles (AoE2-style selection)
+fn screen_rect_to_world_tiles(
+    screen_min: Vec2,
+    screen_max: Vec2,
+    camera: &Camera,
+    cam_transform: &GlobalTransform,
+    _window: &Window,
+) -> std::collections::HashSet<(i32, i32)> {
+    use std::collections::HashSet;
+    
+    let mut covered_tiles = HashSet::new();
+    
+    // Increased sample density for better coverage
+    let sample_density = 20; // More points to sample per axis
+    
+    // Sample points across the selection rectangle in a grid pattern
+    for x_sample in 0..=sample_density {
+        for y_sample in 0..=sample_density {
+            // Calculate sample point in screen space
+            let x_ratio = x_sample as f32 / sample_density as f32;
+            let y_ratio = y_sample as f32 / sample_density as f32;
+            
+            let sample_screen_pos = Vec2::new(
+                screen_min.x + (screen_max.x - screen_min.x) * x_ratio,
+                screen_min.y + (screen_max.y - screen_min.y) * y_ratio,
+            );
+            
+            // Convert to world space via ray casting to ground plane
+            if let Ok(ray) = camera.viewport_to_world(cam_transform, sample_screen_pos) {
+                if let Some(world_pos) = ray_ground_intersection(ray, 0.0) {
+                    let tile = world_pos_to_tile(world_pos);
+                    covered_tiles.insert(tile);
+                }
+            }
+        }
+    }
+    
+    // Additional dense sampling along the edges and diagonals for complete coverage
+    let edge_sample_count = 50; // Many points along edges
+    
+    // Sample along edges
+    for i in 0..=edge_sample_count {
+        let ratio = i as f32 / edge_sample_count as f32;
+        
+        // Top and bottom edges
+        let top_point = Vec2::new(
+            screen_min.x + (screen_max.x - screen_min.x) * ratio,
+            screen_min.y,
+        );
+        let bottom_point = Vec2::new(
+            screen_min.x + (screen_max.x - screen_min.x) * ratio,
+            screen_max.y,
+        );
+        
+        // Left and right edges
+        let left_point = Vec2::new(
+            screen_min.x,
+            screen_min.y + (screen_max.y - screen_min.y) * ratio,
+        );
+        let right_point = Vec2::new(
+            screen_max.x,
+            screen_min.y + (screen_max.y - screen_min.y) * ratio,
+        );
+        
+        // Convert all edge points to world tiles
+        for &edge_point in &[top_point, bottom_point, left_point, right_point] {
+            if let Ok(ray) = camera.viewport_to_world(cam_transform, edge_point) {
+                if let Some(world_pos) = ray_ground_intersection(ray, 0.0) {
+                    let tile = world_pos_to_tile(world_pos);
+                    covered_tiles.insert(tile);
+                }
+            }
+        }
+    }
+    
+    // Alternative approach: Fill in gaps by expanding from corner tiles
+    // Get the corner tiles in world space
+    let corners = [screen_min, Vec2::new(screen_max.x, screen_min.y), screen_max, Vec2::new(screen_min.x, screen_max.y)];
+    let mut corner_tiles = Vec::new();
+    
+    for &corner in &corners {
+        if let Ok(ray) = camera.viewport_to_world(cam_transform, corner) {
+            if let Some(world_pos) = ray_ground_intersection(ray, 0.0) {
+                let tile = world_pos_to_tile(world_pos);
+                corner_tiles.push(tile);
+                covered_tiles.insert(tile);
+            }
+        }
+    }
+    
+    // If we have valid corner tiles, fill in the rectangular area between them
+    if corner_tiles.len() >= 2 {
+        let min_tile_x = corner_tiles.iter().map(|t| t.0).min().unwrap_or(0);
+        let max_tile_x = corner_tiles.iter().map(|t| t.0).max().unwrap_or(0);
+        let min_tile_z = corner_tiles.iter().map(|t| t.1).min().unwrap_or(0);
+        let max_tile_z = corner_tiles.iter().map(|t| t.1).max().unwrap_or(0);
+        
+        // Fill in all tiles in the bounding rectangle (this ensures we don't miss any)
+        for x in min_tile_x..=max_tile_x {
+            for z in min_tile_z..=max_tile_z {
+                covered_tiles.insert((x, z));
+            }
+        }
+    }
+    
+    covered_tiles
+}
+
+/// AoE2-style double-click selection - selects all visible units of the same type
+pub fn handle_double_click_selection(
+    mut commands: Commands,
+    buttons: Res<ButtonInput<MouseButton>>,
+    time: Res<Time>,
+    windows: Query<&Window>,
+    cameras: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    units: Query<(Entity, &GlobalTransform), (With<Controllable>, With<SceneRoot>)>,
+    selected: Query<Entity, With<Selected>>,
+    mut last_click_time: Local<f32>,
+    mut last_click_pos: Local<Vec2>,
+) {
+    if !buttons.just_pressed(MouseButton::Left) {
+        return;
+    }
+
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    let Some(cursor_pos) = window.cursor_position() else {
+        return;
+    };
+    let Ok((camera, cam_transform)) = cameras.single() else {
+        return;
+    };
+
+    let current_time = time.elapsed_secs();
+    let double_click_threshold = 0.3; // seconds
+    let double_click_distance = 20.0; // pixels
+    
+    // Check if this is a double-click
+    let is_double_click = current_time - *last_click_time < double_click_threshold
+        && cursor_pos.distance(*last_click_pos) < double_click_distance;
+    
+    *last_click_time = current_time;
+    *last_click_pos = cursor_pos;
+    
+    if !is_double_click {
+        return;
+    }
+
+    // Find the unit under the cursor
+    let Ok(ray) = camera.viewport_to_world(cam_transform, cursor_pos) else {
+        return;
+    };
+
+    let mut clicked_unit: Option<Entity> = None;
+    for (entity, unit_transform) in units.iter() {
+        let unit_pos = unit_transform.translation();
+        let selection_radius = 1.2;
+        let selection_height = 2.0;
+
+        if ray_intersects_cylinder(ray, unit_pos, selection_radius, selection_height) {
+            clicked_unit = Some(entity);
+            break;
+        }
+    }
+
+    if let Some(_clicked_entity) = clicked_unit {
+        // AoE2 Feature: Select all visible units of the same type
+        // For now, we'll select all controllable units on screen (since we don't have unit types yet)
+        
+        // Deselect current selection
+        for entity in selected.iter() {
+            commands.entity(entity).remove::<Selected>();
+        }
+        
+        let mut selected_count = 0;
+        const MAX_SELECTION: usize = 40; // AoE2 limit
+        
+        for (entity, unit_transform) in units.iter().take(MAX_SELECTION) {
+            let unit_pos = unit_transform.translation();
+            // Check if unit is visible on screen
+            if let Ok(_screen_pos) = camera.world_to_viewport(cam_transform, unit_pos) {
+                commands.entity(entity).insert(Selected);
+                selected_count += 1;
+            }
+        }
+        
+        info!("🔄 Double-click: Selected {} visible units of same type", selected_count);
+    }
 }

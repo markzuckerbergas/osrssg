@@ -1,10 +1,10 @@
 use crate::components::*;
 use bevy::prelude::*;
 
-/// Moves units toward their individual destinations with destination collision prevention only
+/// Moves units toward their individual destinations with AoE2-style collision handling
 pub fn move_units(
-    mut moving_units: Query<(&mut Transform, Entity, &Destination, Option<&mut StuckTimer>, Option<&crate::components::PrimaryTarget>), With<Moving>>,
-    stationary_units: Query<&Transform, (With<Controllable>, Without<Moving>)>,
+    mut moving_units: Query<(&mut Transform, Entity, &Destination, Option<&mut StuckTimer>, Option<&crate::components::PrimaryTarget>, Option<&UnitCollision>), With<Moving>>,
+    stationary_units: Query<(&Transform, Option<&UnitCollision>), (With<Controllable>, Without<Moving>)>,
     static_obstacles: Query<&Transform, (With<StaticObstacle>, Without<Controllable>, Without<Moving>)>,
     mut commands: Commands,
     time: Res<Time>,
@@ -16,7 +16,7 @@ pub fn move_units(
     let mut occupied_destinations: Vec<Vec3> = Vec::new();
     
     // Add current positions of stationary units (they occupy their current position)
-    for transform in stationary_units.iter() {
+    for (transform, _collision) in stationary_units.iter() {
         let grid_pos = snap_to_grid(transform.translation);
         occupied_destinations.push(grid_pos);
     }
@@ -24,7 +24,7 @@ pub fn move_units(
     // Process moving units to determine who gets priority for contested destinations
     let mut unit_data: Vec<(Entity, Vec3, Vec3, f32, bool)> = Vec::new(); // (entity, current_pos, target_pos, distance, is_primary)
     
-    for (transform, entity, destination, _, primary_target) in moving_units.iter() {
+    for (transform, entity, destination, _, primary_target, _collision) in moving_units.iter() {
         let current_pos = transform.translation;
         let target_pos = Vec3::new(destination.target.x, current_pos.y, destination.target.z);
         let distance = current_pos.distance(target_pos);
@@ -81,7 +81,22 @@ pub fn move_units(
         }
     }
 
-    for (mut transform, entity, destination, stuck_timer, _primary_target) in moving_units.iter_mut() {
+    // Collect all unit positions and collision data for collision checking
+    let mut all_unit_positions: Vec<(Entity, Vec3, f32)> = Vec::new();
+    
+    // Add stationary units
+    for (transform, collision) in stationary_units.iter() {
+        let radius = collision.map(|c| c.radius).unwrap_or(0.3);
+        all_unit_positions.push((Entity::PLACEHOLDER, transform.translation, radius));
+    }
+    
+    // Add current moving unit positions
+    for (transform, entity, _, _, _, collision) in moving_units.iter() {
+        let radius = collision.map(|c| c.radius).unwrap_or(0.3);
+        all_unit_positions.push((entity, transform.translation, radius));
+    }
+
+    for (mut transform, entity, destination, stuck_timer, _primary_target, collision) in moving_units.iter_mut() {
         let current_pos = transform.translation;
         let original_target = Vec3::new(destination.target.x, current_pos.y, destination.target.z);
         
@@ -135,7 +150,7 @@ pub fn move_units(
             
             // Check for box collisions during transit
             let mut final_position = desired_position;
-            let unit_radius = 0.3; // Unit collision radius
+            let unit_radius = collision.map(|c| c.radius).unwrap_or(0.3); // Use component radius or default
             
             for obstacle_transform in static_obstacles.iter() {
                 let box_center = obstacle_transform.translation;
@@ -176,6 +191,44 @@ pub fn move_units(
                         }
                     }
                     break; // Only handle one collision at a time
+                }
+            }
+            
+            // AoE2-style friendly unit collision - units can overlap but try to avoid each other
+            if let Some(collision_comp) = collision {
+                if collision_comp.allow_friendly_overlap {
+                    // Check collision with other units using pre-collected positions
+                    let mut friendly_push = Vec3::ZERO;
+                    let mut collision_count = 0;
+                    
+                    // Check against all other units
+                    for (other_entity, other_pos, other_radius) in &all_unit_positions {
+                        if *other_entity != entity { // Skip self
+                            let distance = final_position.distance(*other_pos);
+                            let combined_radius = unit_radius + other_radius;
+                            
+                            if distance < combined_radius && distance > 0.01 {
+                                // Calculate push direction away from other unit
+                                let push_dir = (final_position - *other_pos).normalize_or_zero();
+                                let overlap = combined_radius - distance;
+                                friendly_push += push_dir * overlap * 0.3; // Gentle push
+                                collision_count += 1;
+                            }
+                        }
+                    }
+                    
+                    // Apply friendly collision response (gentle nudging)
+                    if collision_count > 0 {
+                        let avg_push = friendly_push / collision_count as f32;
+                        final_position += avg_push;
+                        
+                        // Clamp the push to prevent units from flying away
+                        let max_push_distance = unit_radius * 0.5;
+                        let push_distance = avg_push.length();
+                        if push_distance > max_push_distance {
+                            final_position = desired_position + avg_push.normalize() * max_push_distance;
+                        }
+                    }
                 }
             }
             
