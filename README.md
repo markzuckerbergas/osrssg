@@ -148,15 +148,17 @@ brew install binaryen  # macOS
 The project includes optimized build profiles for WASM deployment:
 
 ```bash
-# Build optimized WASM binary
-cargo build --profile wasm-release --target wasm32-unknown-unknown
+# Build optimized WASM binary (use standard release for reliability)
+cargo build --release --target wasm32-unknown-unknown
 
 # Generate JavaScript bindings
-wasm-bindgen --out-dir wasm --target web --no-typescript target/wasm32-unknown-unknown/wasm-release/osrssg.wasm
+wasm-bindgen --out-dir wasm --target web --no-typescript target/wasm32-unknown-unknown/release/osrssg.wasm
 
-# Optimize WASM file size (reduces from ~20MB to ~18MB)
-wasm-opt -O --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-reference-types --enable-sign-ext -o wasm/osrssg_bg_optimized.wasm wasm/osrssg_bg.wasm
+# Optional: Further optimize with wasm-opt (can cause compatibility issues)
+# wasm-opt -O --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-reference-types --enable-sign-ext -o wasm/osrssg_bg_optimized.wasm wasm/osrssg_bg.wasm
 ```
+
+**Note**: While `wasm-opt` can reduce file size further, it may cause `LinkError`s with WebAssembly imports. The standard release build provides the best reliability.
 
 ### Optimization Features
 
@@ -171,10 +173,10 @@ The `Cargo.toml` includes specialized profiles for maximum size reduction:
 
 ### Deployment Results
 
-The optimized build achieves significant size reductions:
+The optimized build achieves good size reductions while maintaining reliability:
 - **Original build**: ~25MB WASM file
-- **Optimized build**: ~18MB WASM file  
-- **Size reduction**: 28% smaller, faster loading
+- **Optimized build**: ~20MB WASM file  
+- **Size reduction**: 20% smaller, reliable compatibility
 
 ### GitHub Pages Setup
 
