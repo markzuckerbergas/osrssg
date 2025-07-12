@@ -88,6 +88,7 @@ pub fn update_inventory_ui(
     mut inventory_slots_query: Query<(Entity, &InventorySlot, &mut BackgroundColor), With<InventorySlot>>,
     units_query: Query<&Inventory, With<Controllable>>,
     mut commands: Commands,
+    mut last_selection_count: Local<usize>, // Track previous selection count to avoid spam
 ) {
     let mut should_update = false;
     let mut current_selected_units: Vec<Entity> = Vec::new();
@@ -180,10 +181,16 @@ pub fn update_inventory_ui(
     } else {
         // No units selected or multiple units selected - hide inventory UI
         inventory_root_node.display = Display::None;
-        if current_selected_units.is_empty() {
-            info!("📦 Inventory UI hidden (no selection)");
-        } else {
-            info!("📦 Inventory UI hidden (selection: {} units)", current_selected_units.len());
+        
+        // Only log when selection count changes to avoid spam
+        let current_count = current_selected_units.len();
+        if *last_selection_count != current_count {
+            if current_count == 0 {
+                info!("📦 Inventory UI hidden (no selection)");
+            } else {
+                info!("📦 Inventory UI hidden (selection: {} units)", current_count);
+            }
+            *last_selection_count = current_count;
         }
     }
 }

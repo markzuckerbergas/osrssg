@@ -66,7 +66,7 @@ pub fn setup_scene(
         while attempts < max_attempts {
             let x = rng.gen_range(-8..8) as f32; // Integer grid coordinates
             let z = rng.gen_range(-8..8) as f32;
-            let potential_pos = Vec3::new(x, 0.05, z); // Grid-aligned position
+            let potential_pos = Vec3::new(x, 0.1, z); // Grid-aligned position, slightly higher
 
             let mut position_valid = true;
 
@@ -105,7 +105,7 @@ pub fn setup_scene(
                 let col = (i + fallback_attempt) % 5;
                 let fallback_pos = Vec3::new(
                     col as f32 - 2.0, // Start further from center
-                    0.05,
+                    0.1,              // Higher Y position
                     row as f32 - 2.0,
                 );
 
@@ -137,13 +137,13 @@ pub fn setup_scene(
             }
 
             // Final emergency fallback - far from everything
-            Vec3::new((i as f32) * 2.0 - 10.0, 0.05, -10.0)
+            Vec3::new((i as f32) * 2.0 - 10.0, 0.1, -10.0)
         });
 
         spawn_positions.push(final_position);
 
         let character_transform = Transform {
-            translation: final_position,
+            translation: final_position + Vec3::new(0.0, 0.02, 0.0), // Add small vertical offset
             scale: Vec3::splat(0.03),
             ..default()
         };
@@ -181,7 +181,7 @@ pub fn setup_scene(
             reflectance: 0.0,
             ..default()
         })),
-        Transform::from_xyz(-6.5, 0.0, 0.0),
+        Transform::from_xyz(-6.5, -0.05, 0.0),
     ));
 
     commands.spawn((
@@ -193,7 +193,7 @@ pub fn setup_scene(
             reflectance: 0.0,
             ..default()
         })),
-        Transform::from_xyz(6.5, 0.0, 0.0),
+        Transform::from_xyz(6.5, -0.05, 0.0),
     ));
 
     // Small road in the middle
@@ -206,7 +206,7 @@ pub fn setup_scene(
             reflectance: 0.0,
             ..default()
         })),
-        Transform::from_xyz(0.0, 0.01, 0.0),
+        Transform::from_xyz(0.0, -0.04, 0.0),
     ));
 
     // Add some boxes as obstacles

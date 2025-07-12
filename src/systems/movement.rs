@@ -310,6 +310,19 @@ pub fn move_units(
     }
 }
 
+/// Prevents characters from clipping into the ground by maintaining proper Y positioning
+pub fn maintain_ground_clearance(
+    mut units: Query<&mut Transform, With<Controllable>>,
+) {
+    const MIN_GROUND_Y: f32 = 0.1; // Minimum Y position for characters
+
+    for mut transform in units.iter_mut() {
+        if transform.translation.y < MIN_GROUND_Y {
+            transform.translation.y = MIN_GROUND_Y;
+        }
+    }
+}
+
 // Grid-based movement constants (OSRS style)
 const GRID_SIZE: f32 = 1.0; // Size of each grid square
 
@@ -317,7 +330,7 @@ const GRID_SIZE: f32 = 1.0; // Size of each grid square
 fn snap_to_grid(position: Vec3) -> Vec3 {
     Vec3::new(
         (position.x / GRID_SIZE).round() * GRID_SIZE,
-        position.y, // Keep original Y height
+        0.1, // Set consistent Y height for all movement targets
         (position.z / GRID_SIZE).round() * GRID_SIZE,
     )
 }
@@ -384,10 +397,10 @@ pub fn debug_obstacle_collisions(
         (With<StaticObstacle>, Without<Controllable>, Without<Moving>),
     >,
 ) {
-    for (unit_transform, unit_entity, destination) in moving_units.iter() {
+    for (unit_transform, unit_entity, _destination) in moving_units.iter() {
         let unit_pos = unit_transform.translation;
         let unit_radius = 0.3; // Default unit radius
-        
+
         for (obstacle_transform, collision_size, resource_node) in static_obstacles.iter() {
             let obstacle_center = obstacle_transform.translation;
             let obstacle_size = collision_size
@@ -396,7 +409,7 @@ pub fn debug_obstacle_collisions(
             let obstacle_radius = (obstacle_size.x + obstacle_size.z) * 0.25;
             let distance_to_obstacle = unit_pos.distance(obstacle_center);
             let collision_threshold = unit_radius + obstacle_radius;
-            
+
             // Only log when units are close to obstacles
             if distance_to_obstacle < collision_threshold + 1.0 {
                 let obstacle_type = if let Some(resource) = resource_node {
@@ -404,7 +417,7 @@ pub fn debug_obstacle_collisions(
                 } else {
                     "Box"
                 };
-                
+
                 info!(
                     "🔍 Unit {:?} near {} at ({:.1}, {:.1}): distance={:.2}, threshold={:.2}, size={:.1}×{:.1}, collision={}",
                     unit_entity,
@@ -422,15 +435,26 @@ pub fn debug_obstacle_collisions(
     }
 }
 
-// Debug system to visualize collision circles (optional)
-// Note: Commented out due to gizmo API changes - can be re-implemented later
-/*
+// Debug system to log character positions for debugging clipping issues
 pub fn debug_collision_circles(
-    units: Query<(&Transform, &CollisionRadius), With<Controllable>>,
-    mut gizmos: Gizmos,
+    units: Query<(&Transform, &UnitCollision), With<Controllable>>,
+    mut debug_timer: Local<f32>,
+    time: Res<Time>,
 ) {
-    for (transform, collision) in units.iter() {
-        // TODO: Update to use correct gizmo API for current Bevy version
+    *debug_timer += time.delta_secs();
+
+    // Only log every 2 seconds to avoid spam
+    if *debug_timer > 2.0 {
+        *debug_timer = 0.0;
+
+        for (transform, collision) in units.iter() {
+            info!(
+                "🔍 Unit at ({:.2}, {:.2}, {:.2}) with collision radius {:.2}",
+                transform.translation.x,
+                transform.translation.y,
+                transform.translation.z,
+                collision.radius
+            );
+        }
     }
 }
-*/

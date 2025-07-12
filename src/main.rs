@@ -42,6 +42,7 @@ fn main() {
                 
                 // === MOVEMENT PHASE ===
                 move_units, // Update positions first
+                maintain_ground_clearance, // Prevent clipping through ground
                 
                 // === ECONOMY PHASE ===
                 // Process economic activities after movement is complete
@@ -57,10 +58,10 @@ fn main() {
                 // Minimap updates
                 (update_minimap, toggle_minimap_visibility),
                 // Debug
+                // debug_collision_circles, // Enable to see collision info
                 // debug_entity_spawning,
                 // debug_animation_assets,
                 // debug_moving_components,
-                // debug_collision_circles, // Uncomment to see collision circles
             )
                 .chain(),
         )

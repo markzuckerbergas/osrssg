@@ -187,7 +187,7 @@ pub fn handle_movement_command(
 
     let base_destination = if let Some(box_center) = clicked_box {
         // Clicked on a box - find the closest adjacent tile
-        let raw_ground_pos = ray_ground_intersection(ray, 0.0).unwrap_or(box_center);
+        let raw_ground_pos = ray_ground_intersection(ray, 0.1).unwrap_or(box_center);
         let adjacent_tile = find_closest_adjacent_tile(box_center, raw_ground_pos);
 
         info!(
@@ -198,7 +198,7 @@ pub fn handle_movement_command(
         adjacent_tile
     } else {
         // Normal ground click - snap to grid
-        if let Some(raw_destination) = ray_ground_intersection(ray, 0.0) {
+        if let Some(raw_destination) = ray_ground_intersection(ray, 0.1) {
             let snapped = snap_to_grid(raw_destination);
             info!(
                 "🎯 Grid movement command: raw({:.2}, {:.2}) -> grid({:.0}, {:.0})",

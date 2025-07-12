@@ -126,7 +126,7 @@ pub fn spawn_resources(
             // Generate grid-aligned position
             let x = rng.gen_range(config.world_min.x as i32..=config.world_max.x as i32) as f32;
             let z = rng.gen_range(config.world_min.z as i32..=config.world_max.z as i32) as f32;
-            let potential_pos = Vec3::new(x, 0.1, z); // Slightly above ground
+            let potential_pos = Vec3::new(x, 0.1, z); // Slightly above ground, consistent with characters
 
             let mut position_valid = true;
 
